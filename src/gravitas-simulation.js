@@ -60,8 +60,24 @@ export function createGravitasSimulation(parentEl) {
   discoverBtn.style.alignItems = "center";
   discoverBtn.style.justifyContent = "center";
 
+  // NEW: Play/Pause button
+  const togglePlayBtn = document.createElement("button");
+  togglePlayBtn.id = "togglePlayButton";
+  togglePlayBtn.textContent = "Pause";
+  togglePlayBtn.style.padding = "10px 20px";
+  togglePlayBtn.style.backgroundColor = "#FFFFFF";
+  togglePlayBtn.style.border = "none";
+  togglePlayBtn.style.borderRadius = "4px";
+  togglePlayBtn.style.cursor = "pointer";
+  togglePlayBtn.style.color = "black";
+  togglePlayBtn.style.display = "inline-flex";
+  togglePlayBtn.style.alignItems = "center";
+  togglePlayBtn.style.justifyContent = "center";
+  // We will attach its event listener below in the IIFE
+
   topCenterContainer.appendChild(logo);
   topCenterContainer.appendChild(discoverBtn);
+  topCenterContainer.appendChild(togglePlayBtn);
   container.appendChild(topCenterContainer);
 
   // 2. "Post List" panel
@@ -233,6 +249,9 @@ export function createGravitasSimulation(parentEl) {
     let lastMouseY = 0;
     const DRAG_THRESHOLD = 5;
 
+    // NEW: isPaused toggles physics updates
+    let isPaused = false;
+
     // 3 PMNs: upvoteFactor, commentFactor, newnessFactor
     const pmnMetrics = [
       { metric: "upvoteFactor",  mass: 20 },
@@ -247,6 +266,7 @@ export function createGravitasSimulation(parentEl) {
       position: null
     }));
 
+    // Handle orbit dragging
     function setupInteraction(domEl) {
       const raycaster = new THREE.Raycaster();
       const mouse = new THREE.Vector2();
@@ -277,6 +297,7 @@ export function createGravitasSimulation(parentEl) {
 
       domEl.addEventListener("mouseup", e => {
         if (!isDragging) {
+          // Attempt selection
           const rect = domEl.getBoundingClientRect();
           mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
           mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -295,6 +316,7 @@ export function createGravitasSimulation(parentEl) {
       });
     }
 
+    // Show the big image in the center
     function showAbsorbedImage(imageUrl, redditUrl, postTitle, upvoteCount) {
       const container = document.getElementById("absorbedImageContainer");
       const link = document.getElementById("absorbedImageLink");
@@ -313,6 +335,7 @@ export function createGravitasSimulation(parentEl) {
       }
     }
 
+    // Show the text details below the image
     function showDetailsPane(title, upvoteCount) {
       const pane = document.getElementById("absorbedDetailsContainer");
       const titleEl = document.getElementById("detailsTitle");
@@ -333,6 +356,7 @@ export function createGravitasSimulation(parentEl) {
       if (imgCont) imgCont.style.display = "none";
     }
 
+    // Clicking on a sphere
     function showClickedDnBriefly(dn, instanceId) {
       const title = dn.redditData?.title || "(untitled)";
       const postUrl = dn.redditData?.permalink
@@ -347,6 +371,7 @@ export function createGravitasSimulation(parentEl) {
       dnInstancedMesh.instanceColor.needsUpdate = true;
     }
 
+    // Mass logic
     function calculateDnMass(dn) {
       return pmnData.reduce((total, pmn) => {
         switch (pmn.metric) {
@@ -367,8 +392,7 @@ export function createGravitasSimulation(parentEl) {
       });
     }
 
-    // --------------- CHANGED: Use multiple feed endpoints. ---------------
-    // Instead of one feed, let's fetch "hot", "new", "top" from the same subreddit
+    // Fetch multiple feeds from subreddit
     async function fetchAllRedditThreads() {
       const sub = getCurrentSubredditFromUrl() || "popular";
       console.log("[fetchAllRedditThreads] Using multiple feed types for r/", sub);
@@ -397,7 +421,6 @@ export function createGravitasSimulation(parentEl) {
       return "popular";
     }
 
-    // --------------- NEW: We'll pass feed type (hot/new/top) ---------------
     async function fetchRedditDataViaApi(subreddit, feedType = "hot") {
       const url = `https://www.reddit.com/r/${subreddit}/${feedType}.json?limit=100`;
       const resp = await fetch(url);
@@ -433,6 +456,7 @@ export function createGravitasSimulation(parentEl) {
       return "";
     }
 
+    // Convert posts to DN objects
     function convertRedditPostsToDNs(posts) {
       const maxX = 700, maxY = 600, maxZ = 400;
       const now = Date.now();
@@ -472,6 +496,7 @@ export function createGravitasSimulation(parentEl) {
       });
     }
 
+    // For bigger visual effect, fill up to 1000 DN
     function scaleDNsTo1000(dnData) {
       if (!dnData.length) return dnData;
       const origCount = dnData.length;
@@ -494,7 +519,7 @@ export function createGravitasSimulation(parentEl) {
       return dnData;
     }
 
-    // --------------- init() now merges multiple feed data ---------------
+    // init => fetch posts
     async function init() {
       const posts = await fetchAllRedditThreads();
       let rawDNs = convertRedditPostsToDNs(posts);
@@ -564,6 +589,7 @@ export function createGravitasSimulation(parentEl) {
       animate();
     }
 
+    // Queue logic
     let queueTimerHandle = null;
     const BATCH_SIZE = 50;
     const QUEUE_INTERVAL_MS = 3000;
@@ -683,21 +709,25 @@ export function createGravitasSimulation(parentEl) {
       }
     }
 
+    // The main animation loop
     function animate() {
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
 
-      applyForces();
-      updateCamera();
-
-      timeSinceAbsorption += dt;
-      if (timeSinceAbsorption >= ABSORPTION_INTERVAL) {
-        timeSinceAbsorption = 0;
-        timeBasedAbsorption();
+      if (!isPaused) {
+        applyForces();
+        timeSinceAbsorption += dt;
+        if (timeSinceAbsorption >= ABSORPTION_INTERVAL) {
+          timeSinceAbsorption = 0;
+          timeBasedAbsorption();
+        }
       }
+      // We always update camera & render, so user can orbit even if paused
+      updateCamera();
       renderer.render(scene, camera);
     }
 
+    // Absorption (pulled to PMN)
     function timeBasedAbsorption() {
       pmnData.forEach(pmn => {
         let closestIdx = -1;
@@ -747,6 +777,7 @@ export function createGravitasSimulation(parentEl) {
       });
     }
 
+    // Apply the gravity-like forces
     function applyForces() {
       const tmpMat = new THREE.Matrix4();
       for (let i = 0; i < dnData.length; i++) {
@@ -827,6 +858,7 @@ export function createGravitasSimulation(parentEl) {
       }
     }
 
+    // Move the camera around the center
     function updateCamera() {
       const t = clock.getElapsedTime();
       const xOrbit = orbitRadius * Math.sin(orbitPolar) * Math.cos(orbitAzimuth);
@@ -846,7 +878,6 @@ export function createGravitasSimulation(parentEl) {
     }
 
     // Listen for "Threads" button => init
-    const discoverBtn = document.getElementById("startButton");
     if (discoverBtn) {
       discoverBtn.addEventListener("click", () => {
         init().catch(err => {
@@ -859,6 +890,14 @@ export function createGravitasSimulation(parentEl) {
           centerEl.textContent = "";
         }
         discoverBtn.disabled = true;
+      });
+    }
+
+    // NEW: Listen for play/pause toggle
+    if (togglePlayBtn) {
+      togglePlayBtn.addEventListener("click", () => {
+        isPaused = !isPaused;
+        togglePlayBtn.textContent = isPaused ? "Play" : "Pause";
       });
     }
 
