@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 
 export function createGravitasSimulation(parentEl) {
-  // DOM container creation
+
+  // 1. DOM container creation
   const container = document.createElement("div");
   container.id = "simulation-container";
   container.style.position = "relative";
@@ -63,7 +64,7 @@ export function createGravitasSimulation(parentEl) {
   topCenterContainer.appendChild(discoverBtn);
   container.appendChild(topCenterContainer);
 
-  // "Post List" panel (side bar)
+  // 2. "Post List" panel
   const postListPanel = document.createElement("div");
   postListPanel.id = "postListPanel";
   postListPanel.style.position = "absolute";
@@ -106,7 +107,7 @@ export function createGravitasSimulation(parentEl) {
 
   const absorbedImage = document.createElement("img");
   absorbedImage.id = "absorbedImage";
-  absorbedImage.src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+  absorbedImage.src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="; // blank fallback
   absorbedImage.alt = "Reddit Preview Image";
   absorbedImage.style.display = "block";
   absorbedImage.style.width = "auto";
@@ -119,6 +120,7 @@ export function createGravitasSimulation(parentEl) {
   absorbedImageLink.appendChild(absorbedImage);
   absorbedImageContainer.appendChild(absorbedImageLink);
   document.body.appendChild(absorbedImageContainer);
+
   absorbedImageLink.appendChild(absorbedImage);
   absorbedImageContainer.appendChild(absorbedImageLink);
   container.appendChild(absorbedImageContainer);
@@ -167,7 +169,7 @@ export function createGravitasSimulation(parentEl) {
   // =====================================
   (function() {
 
-    // 1) Multiple Reddit feed endpoints
+    // --------------- NEW: We'll store multiple feed types. ---------------
     const FEED_TYPES = ["hot", "new", "top"];
 
     // We'll keep track of the last 10 absorbed posts
@@ -202,7 +204,6 @@ export function createGravitasSimulation(parentEl) {
 
     const clickColors = ["#FF6188", "#A9DC76", "#FFD866", "#78DCE8", "#AB9DF2"];
 
-    // Scene / Node variables
     let dnInstancedMesh = null;
     let dnData = [];
     let queuedDNs = [];
@@ -214,8 +215,8 @@ export function createGravitasSimulation(parentEl) {
     let timeSinceAbsorption = 0;
     const ABSORPTION_INTERVAL = 1.0;
 
-    // Bounds & physics constants
     const boundaryX = 700, boundaryY = 600, boundaryZ = 400;
+    const G = 1;
     const softening = 5;
     const maxForce = 15;
     const maxVelocity = 20;
@@ -232,11 +233,11 @@ export function createGravitasSimulation(parentEl) {
     let lastMouseY = 0;
     const DRAG_THRESHOLD = 5;
 
-    // 2) We define 3 PMNs—each has a metric: upvoteFactor, commentFactor, newnessFactor
+    // 3 PMNs: upvoteFactor, commentFactor, newnessFactor
     const pmnMetrics = [
-      { metric: "upvoteFactor",  mass: 20 },  // PMN #1
-      { metric: "commentFactor", mass: 12 },  // PMN #2
-      { metric: "newnessFactor", mass: 15 },  // PMN #3
+      { metric: "upvoteFactor",  mass: 20 },
+      { metric: "commentFactor", mass: 12 },
+      { metric: "newnessFactor", mass: 15 },
     ];
     let pmnData = pmnMetrics.map(m => ({
       mesh: null,
@@ -246,9 +247,6 @@ export function createGravitasSimulation(parentEl) {
       position: null
     }));
 
-    /****************************************************
-     *  BASIC USER INTERACTION
-     ****************************************************/
     function setupInteraction(domEl) {
       const raycaster = new THREE.Raycaster();
       const mouse = new THREE.Vector2();
@@ -271,6 +269,7 @@ export function createGravitasSimulation(parentEl) {
           orbitAzimuth -= deltaX * 0.003;
           orbitPolar -= deltaY * 0.003;
           orbitPolar = Math.max(0.01, Math.min(Math.PI - 0.01, orbitPolar));
+
           lastMouseX = e.clientX;
           lastMouseY = e.clientY;
         }
@@ -296,14 +295,10 @@ export function createGravitasSimulation(parentEl) {
       });
     }
 
-    /****************************************************
-     *  ABSORBED IMAGE / DETAILS
-     ****************************************************/
     function showAbsorbedImage(imageUrl, redditUrl, postTitle, upvoteCount) {
       const container = document.getElementById("absorbedImageContainer");
       const link = document.getElementById("absorbedImageLink");
       const img = document.getElementById("absorbedImage");
-
       if (link) link.href = redditUrl || "#";
       if (img) {
         img.src = imageUrl || "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
@@ -345,7 +340,6 @@ export function createGravitasSimulation(parentEl) {
         : "#";
       const imageUrl = dn.redditData?.thumbnailUrl || "";
       const upvoteCount = dn.redditData?.upvoteCount || 0;
-
       showAbsorbedImage(imageUrl, postUrl, title, upvoteCount);
 
       const newColor = new THREE.Color(clickColors[Math.floor(Math.random() * clickColors.length)]);
@@ -353,36 +347,59 @@ export function createGravitasSimulation(parentEl) {
       dnInstancedMesh.instanceColor.needsUpdate = true;
     }
 
-    /****************************************************
-     *  REDDIT FETCHING (MULTIPLE FEEDS)
-     ****************************************************/
-    function getCurrentSubredditFromUrl() {
-      const currentUrl = window.location.href;
-      const match = currentUrl.match(/reddit\.com\/r\/([^/]+)/);
-      if (match && match[1]) return match[1];
-      return "popular"; // default
+    function calculateDnMass(dn) {
+      return pmnData.reduce((total, pmn) => {
+        switch (pmn.metric) {
+          case "upvoteFactor":
+            return total + pmn.mass * dn.attributes.upvoteFactor;
+          case "commentFactor":
+            return total + pmn.mass * dn.attributes.commentFactor;
+          case "newnessFactor":
+            return total + pmn.mass * dn.attributes.newnessFactor;
+          default:
+            return total;
+        }
+      }, 1);
+    }
+    function recalculateDnMasses(dnArray) {
+      dnArray.forEach(dn => {
+        dn.mass = calculateDnMass(dn);
+      });
     }
 
+    // --------------- CHANGED: Use multiple feed endpoints. ---------------
+    // Instead of one feed, let's fetch "hot", "new", "top" from the same subreddit
     async function fetchAllRedditThreads() {
       const sub = getCurrentSubredditFromUrl() || "popular";
       console.log("[fetchAllRedditThreads] Using multiple feed types for r/", sub);
 
+      // 1) Fetch each feed type (hot, new, top)
       let allPosts = [];
       for (const type of FEED_TYPES) {
         const postsForType = await fetchRedditDataViaApi(sub, type);
         allPosts = allPosts.concat(postsForType);
       }
-      // Remove duplicates by permalink
+
+      // 2) Remove duplicates by post permalink or id
       const uniqueMap = new Map();
       for (let p of allPosts) {
+        // Use permalink as the unique key
         uniqueMap.set(p.permalink, p);
       }
       const uniquePosts = Array.from(uniqueMap.values());
       return uniquePosts;
     }
 
+    function getCurrentSubredditFromUrl() {
+      const currentUrl = window.location.href;
+      const match = currentUrl.match(/reddit\.com\/r\/([^/]+)/);
+      if (match && match[1]) return match[1];
+      return "popular";
+    }
+
+    // --------------- NEW: We'll pass feed type (hot/new/top) ---------------
     async function fetchRedditDataViaApi(subreddit, feedType = "hot") {
-      const url = `https://www.reddit.com/r/${subreddit}/${feedType}.json?limit=50`;
+      const url = `https://www.reddit.com/r/${subreddit}/${feedType}.json?limit=100`;
       const resp = await fetch(url);
       if (!resp.ok) {
         throw new Error(`Reddit API error: ${resp.statusText}`);
@@ -421,18 +438,15 @@ export function createGravitasSimulation(parentEl) {
       const now = Date.now();
 
       return posts.map(post => {
-        // newnessFactor
         const ageDays = (now - post.createdAt) / (1000 * 60 * 60 * 24);
         const maxDays = 365;
         const clamped = Math.min(ageDays, maxDays);
         const newnessFactor = 1 - (clamped / maxDays);
 
-        // upvoteFactor, commentFactor
         const upvoteFactor = Math.min(post.upvoteCount / 5000, 1.0);
         const commentFactor = Math.min(post.commentCount / 500, 1.0);
 
-        // We'll no longer "sum" these into dn.mass. We'll store them individually
-        return {
+        const dn = {
           redditData: {
             title: post.title,
             upvoteCount: post.upvoteCount,
@@ -440,22 +454,21 @@ export function createGravitasSimulation(parentEl) {
             thumbnailUrl: post.thumbnailUrl
           },
           attributes: {
-            // each metric
             upvoteFactor,
             commentFactor,
             newnessFactor
           },
-          // random initial position
           position: new THREE.Vector3(
             Math.random() * maxX,
             Math.random() * maxY,
             Math.random() * maxZ
           ),
           velocity: new THREE.Vector3(0, 0, 0),
-          // We'll store "mass" if you like, but not from sum of metrics
           mass: 1,
           alive: true
         };
+        dn.mass = calculateDnMass(dn);
+        return dn;
       });
     }
 
@@ -481,24 +494,19 @@ export function createGravitasSimulation(parentEl) {
       return dnData;
     }
 
+    // --------------- init() now merges multiple feed data ---------------
     async function init() {
-      // 1) fetch multiple Reddit feed types
       const posts = await fetchAllRedditThreads();
-      // 2) convert them to DNs
       let rawDNs = convertRedditPostsToDNs(posts);
-      // 3) Optionally fill up to 1000
       if (rawDNs.length < 1000) {
         scaleDNsTo1000(rawDNs);
       }
-      // 4) place them into our queue
       queuedDNs = rawDNs.slice();
-      // 5) create empty scene & start
       createEmptyScene();
       startQueueTimer();
     }
 
     function randomPmnPosition() {
-      // you can tweak how far PMNs appear
       const x = 175 + Math.random() * 350;
       const y = 150 + Math.random() * 300;
       const z = 100 + Math.random() * 200;
@@ -511,6 +519,7 @@ export function createGravitasSimulation(parentEl) {
         console.warn("No simulation container found!");
         return;
       }
+
       scene = new THREE.Scene();
       scene.background = new THREE.Color("#F2F2F2");
 
@@ -524,7 +533,7 @@ export function createGravitasSimulation(parentEl) {
       renderer.setSize(container.offsetWidth, container.offsetHeight);
       container.appendChild(renderer.domElement);
 
-      // 3) Create PMNs in random positions
+      // Create PMNs
       pmnData.forEach(p => {
         p.position = randomPmnPosition();
       });
@@ -555,7 +564,6 @@ export function createGravitasSimulation(parentEl) {
       animate();
     }
 
-    // Timer-based queue insertion
     let queueTimerHandle = null;
     const BATCH_SIZE = 50;
     const QUEUE_INTERVAL_MS = 3000;
@@ -610,7 +618,6 @@ export function createGravitasSimulation(parentEl) {
       const baseDnGeom = new THREE.SphereGeometry(5, 16, 16);
       const dnMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
       const newMesh = new THREE.InstancedMesh(baseDnGeom, dnMat, newCount);
-
       newMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       newMesh.instanceColor = new THREE.InstancedBufferAttribute(
         new Float32Array(newCount * 3), 3
@@ -676,9 +683,6 @@ export function createGravitasSimulation(parentEl) {
       }
     }
 
-    /****************************************************
-     *  MAIN ANIMATION LOOP
-     ****************************************************/
     function animate() {
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
@@ -694,9 +698,6 @@ export function createGravitasSimulation(parentEl) {
       renderer.render(scene, camera);
     }
 
-    /****************************************************
-     *  PMN ABSORPTION
-     ****************************************************/
     function timeBasedAbsorption() {
       pmnData.forEach(pmn => {
         let closestIdx = -1;
@@ -723,10 +724,8 @@ export function createGravitasSimulation(parentEl) {
             : "#";
           const postTitle = absorbedDn.redditData.title || "(unnamed)";
           const upvoteCount = absorbedDn.redditData.upvoteCount || 0;
-
           showAbsorbedImage(imageUrl, postUrl, postTitle, upvoteCount);
 
-          // remove line segment
           const idxLine = closestIdx * 6;
           linePositions[idxLine+0] = -9999;
           linePositions[idxLine+1] = -9999;
@@ -736,11 +735,10 @@ export function createGravitasSimulation(parentEl) {
           linePositions[idxLine+5] = -9999;
           lineSegments.geometry.attributes.position.needsUpdate = true;
 
-          // Add to "absorbedHistory" → keep last 10
-          absorbedHistory.unshift({
-            title: postTitle,
-            postUrl
-          });
+          recalculateDnMasses(dnData.filter(d => d.alive));
+
+          // Push the new post to absorbedHistory, keep last 10, update UI
+          absorbedHistory.unshift({ title: postTitle, postUrl });
           if (absorbedHistory.length > 10) {
             absorbedHistory.pop();
           }
@@ -749,12 +747,8 @@ export function createGravitasSimulation(parentEl) {
       });
     }
 
-    /****************************************************
-     *  UPDATED FORCE LOGIC FOR 3 PMNs
-     ****************************************************/
     function applyForces() {
       const tmpMat = new THREE.Matrix4();
-
       for (let i = 0; i < dnData.length; i++) {
         const dn = dnData[i];
         if (!dn.alive) continue;
@@ -765,17 +759,9 @@ export function createGravitasSimulation(parentEl) {
         let maxPull = 0;
 
         pmnData.forEach(pmn => {
-          // 1) Figure out how strongly THIS PMN attracts THIS DN
-          //    -> pmn.metric is "upvoteFactor" or "commentFactor" or "newnessFactor"
-          //    -> dn.attributes[pmn.metric] is the node's "strength" for that metric
-          const metricValue = dn.attributes[pmn.metric] || 0;
           const rVec = new THREE.Vector3().subVectors(pmn.mesh.position, dn.position);
           const L = rVec.length() + softening;
-
-          // Force = pmn.mass * metricValue / distance^2
-          const forceMag = pmn.mass * metricValue / (L * L);
-
-          // track if this is the biggest pull for line drawing
+          const forceMag = (1 * dn.mass * pmn.mass) / (L * L);
           if (forceMag > maxPull) {
             maxPull = forceMag;
             strongestPMN = pmn;
@@ -783,22 +769,20 @@ export function createGravitasSimulation(parentEl) {
           rVec.normalize();
           totalForce.add(rVec.multiplyScalar(forceMag));
 
-          // If close, apply a small velocity "slingshot"
           if (L < 50) {
             const boostMag = (1*10)/(L*L);
             velocityBoost.add(rVec.clone().multiplyScalar(boostMag*0.05));
           }
         });
 
-        // Cap the force to avoid super high speeds
         if (totalForce.length() > maxForce) {
           totalForce.normalize().multiplyScalar(maxForce);
         }
+
         dn.velocity.add(totalForce).add(velocityBoost);
         dn.position.add(dn.velocity);
-        dn.velocity.multiplyScalar(0.998); // friction
+        dn.velocity.multiplyScalar(0.998);
 
-        // Cap velocity
         if (dn.velocity.length() > maxVelocity) {
           dn.velocity.normalize().multiplyScalar(maxVelocity);
         }
@@ -820,11 +804,9 @@ export function createGravitasSimulation(parentEl) {
           dn.position.z = 0; dn.velocity.z *= -1;
         }
 
-        // Update the InstancedMesh matrix
         tmpMat.makeTranslation(dn.position.x, dn.position.y, dn.position.z);
         dnInstancedMesh.setMatrixAt(i, tmpMat);
 
-        // Draw line from DN to whichever PMN had the strongest pull
         if (strongestPMN) {
           const arrOffset = i * 6;
           linePositions[arrOffset + 0] = dn.position.x;
