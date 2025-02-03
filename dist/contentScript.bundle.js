@@ -79,33 +79,32 @@ function createGravitasSimulation(parentEl) {
   topCenterContainer.appendChild(discoverBtn);
   container.appendChild(topCenterContainer);
 
-  // Debug overlay
-  const debugOverlay = document.createElement("div");
-  debugOverlay.id = "output";
-  debugOverlay.style.position = "absolute";
-  debugOverlay.style.bottom = "10px";
-  debugOverlay.style.left = "50%";
-  debugOverlay.style.transform = "translateX(-50%)";
-  debugOverlay.style.zIndex = "9999";
-  debugOverlay.style.maxWidth = "350px";
-  debugOverlay.style.maxHeight = "300px";
-  debugOverlay.style.overflowY = "auto";
-  debugOverlay.style.backgroundColor = "rgba(255, 255, 255, 0.8)";
-  debugOverlay.style.padding = "10px";
-  debugOverlay.style.borderRadius = "4px";
-  debugOverlay.style.fontSize = "13px";
-  debugOverlay.style.pointerEvents = "none";
-  debugOverlay.style.display = "none";
-  debugOverlay.style.color = "#000";
-  container.appendChild(debugOverlay);
+  // 2. "Post List" panel
+  const postListPanel = document.createElement("div");
+  postListPanel.id = "postListPanel";
+  postListPanel.style.position = "absolute";
+  postListPanel.style.right = "20px";
+  postListPanel.style.bottom = "20px";
+  postListPanel.style.width = "200px";
+  postListPanel.style.maxHeight = "500px";
+  postListPanel.style.overflowY = "auto";
+  postListPanel.style.backgroundColor = "rgba(255, 255, 255, 0.8)";
+  postListPanel.style.padding = "10px";
+  postListPanel.style.borderRadius = "4px";
+  postListPanel.style.fontSize = "13px";
+  postListPanel.style.pointerEvents = "auto";
+  postListPanel.style.display = "none";
+  postListPanel.style.color = "#000";
+  postListPanel.style.zIndex = "9999";
+  container.appendChild(postListPanel);
 
-  // Absorbed Image Container
+  // Absorbed Image Container (512px wide)
   const absorbedImageContainer = document.createElement("div");
   absorbedImageContainer.id = "absorbedImageContainer";
   absorbedImageContainer.style.position = "absolute";
-  absorbedImageContainer.style.bottom = "25px";
+  absorbedImageContainer.style.top = "50%";
   absorbedImageContainer.style.left = "50%";
-  absorbedImageContainer.style.transform = "translate(-50%)";
+  absorbedImageContainer.style.transform = "translate(-50%, -50%)";
   absorbedImageContainer.style.zIndex = "9999";
   absorbedImageContainer.style.display = "inline-block";
   absorbedImageContainer.style.minWidth = "512px";
@@ -123,10 +122,8 @@ function createGravitasSimulation(parentEl) {
 
   const absorbedImage = document.createElement("img");
   absorbedImage.id = "absorbedImage";
-  // blank 1x1 gif so no broken image
-  absorbedImage.src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+  absorbedImage.src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="; // blank fallback
   absorbedImage.alt = "Reddit Preview Image";
-
   absorbedImage.style.display = "block";
   absorbedImage.style.width = "auto";
   absorbedImage.style.height = "auto";
@@ -134,6 +131,10 @@ function createGravitasSimulation(parentEl) {
   absorbedImage.style.maxWidth = "100%";
   absorbedImage.style.maxHeight = "100%";
   absorbedImage.style.objectFit = "contain";
+
+  absorbedImageLink.appendChild(absorbedImage);
+  absorbedImageContainer.appendChild(absorbedImageLink);
+  document.body.appendChild(absorbedImageContainer);
 
   absorbedImageLink.appendChild(absorbedImage);
   absorbedImageContainer.appendChild(absorbedImageLink);
@@ -178,11 +179,45 @@ function createGravitasSimulation(parentEl) {
   // For text override
   const centerEl = document.getElementById("centeredText");
 
-  // Wrap the logic in an IIFE
+  // =====================================
+  //  IIFE to hold our logic
+  // =====================================
   (function() {
 
-    let debugOverlay = false;
-    let debugLog = [];
+    // --------------- NEW: We'll store multiple feed types. ---------------
+    const FEED_TYPES = ["hot", "new", "top"];
+
+    // We'll keep track of the last 10 absorbed posts
+    const absorbedHistory = [];
+    function updatePostListUI() {
+      const panel = document.getElementById("postListPanel");
+      panel.innerHTML = "";
+      const heading = document.createElement("div");
+      heading.textContent = "Last 10 Absorbed Posts:";
+      heading.style.fontWeight = "bold";
+      heading.style.marginBottom = "8px";
+      panel.appendChild(heading);
+
+      absorbedHistory.forEach((item) => {
+        const link = document.createElement("a");
+        link.href = item.postUrl || "#";
+        link.target = "_blank";
+        link.textContent = item.title || "(untitled)";
+        link.style.display = "block";
+        link.style.marginBottom = "4px";
+        link.style.textDecoration = "none";
+        link.style.color = "#0077cc";
+        panel.appendChild(link);
+      });
+
+      if (absorbedHistory.length > 0) {
+        panel.style.display = "block";
+      } else {
+        panel.style.display = "none";
+      }
+    }
+
+    const clickColors = ["#FF6188", "#A9DC76", "#FFD866", "#78DCE8", "#AB9DF2"];
 
     let dnInstancedMesh = null;
     let dnData = [];
@@ -213,10 +248,7 @@ function createGravitasSimulation(parentEl) {
     let lastMouseY = 0;
     const DRAG_THRESHOLD = 5;
 
-    // Colors for click highlight
-    const clickColors = ["#FF6188", "#A9DC76", "#FFD866", "#78DCE8", "#AB9DF2"];
-
-    // "PMN" logic: We'll interpret them as upvoteFactor, commentFactor, newnessFactor
+    // 3 PMNs: upvoteFactor, commentFactor, newnessFactor
     const pmnMetrics = [
       { metric: "upvoteFactor",  mass: 20 },
       { metric: "commentFactor", mass: 12 },
@@ -230,20 +262,6 @@ function createGravitasSimulation(parentEl) {
       position: null
     }));
 
-    function debugPrint(msg) {
-      if (!debugOverlay) return;
-      debugLog.push(msg);
-      const out = document.getElementById("output");
-      if (out) {
-        out.innerHTML = debugLog.join("<br>");
-        out.style.display = "block";
-        out.scrollTop = out.scrollHeight;
-      }
-    }
-
-    /*************************************************
-     * Basic user interaction for orbiting & picking
-     *************************************************/
     function setupInteraction(domEl) {
       const raycaster = new three__WEBPACK_IMPORTED_MODULE_0__.Raycaster();
       const mouse = new three__WEBPACK_IMPORTED_MODULE_0__.Vector2();
@@ -292,14 +310,10 @@ function createGravitasSimulation(parentEl) {
       });
     }
 
-    /*************************************************
-     * Show/hide the "absorbed" overlay
-     *************************************************/
     function showAbsorbedImage(imageUrl, redditUrl, postTitle, upvoteCount) {
       const container = document.getElementById("absorbedImageContainer");
       const link = document.getElementById("absorbedImageLink");
       const img = document.getElementById("absorbedImage");
-    
       if (link) link.href = redditUrl || "#";
       if (img) {
         img.src = imageUrl || "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
@@ -336,21 +350,18 @@ function createGravitasSimulation(parentEl) {
 
     function showClickedDnBriefly(dn, instanceId) {
       const title = dn.redditData?.title || "(untitled)";
-      const postUrl = dn.redditData?.permalink ? "https://www.reddit.com" + dn.redditData.permalink : "#";
+      const postUrl = dn.redditData?.permalink
+        ? "https://www.reddit.com" + dn.redditData.permalink
+        : "#";
       const imageUrl = dn.redditData?.thumbnailUrl || "";
       const upvoteCount = dn.redditData?.upvoteCount || 0;
-
       showAbsorbedImage(imageUrl, postUrl, title, upvoteCount);
 
-      // Random color
       const newColor = new three__WEBPACK_IMPORTED_MODULE_0__.Color(clickColors[Math.floor(Math.random() * clickColors.length)]);
       dnInstancedMesh.setColorAt(instanceId, newColor);
       dnInstancedMesh.instanceColor.needsUpdate = true;
     }
 
-    /*************************************************
-     * PMN "mass" calculations
-     *************************************************/
     function calculateDnMass(dn) {
       return pmnData.reduce((total, pmn) => {
         switch (pmn.metric) {
@@ -365,46 +376,45 @@ function createGravitasSimulation(parentEl) {
         }
       }, 1);
     }
-
     function recalculateDnMasses(dnArray) {
       dnArray.forEach(dn => {
         dn.mass = calculateDnMass(dn);
       });
     }
 
-    /*************************************************
-     * 1) Parse the subreddit from the URL
-     *************************************************/
+    // --------------- CHANGED: Use multiple feed endpoints. ---------------
+    // Instead of one feed, let's fetch "hot", "new", "top" from the same subreddit
+    async function fetchAllRedditThreads() {
+      const sub = getCurrentSubredditFromUrl() || "popular";
+      console.log("[fetchAllRedditThreads] Using multiple feed types for r/", sub);
+
+      // 1) Fetch each feed type (hot, new, top)
+      let allPosts = [];
+      for (const type of FEED_TYPES) {
+        const postsForType = await fetchRedditDataViaApi(sub, type);
+        allPosts = allPosts.concat(postsForType);
+      }
+
+      // 2) Remove duplicates by post permalink or id
+      const uniqueMap = new Map();
+      for (let p of allPosts) {
+        // Use permalink as the unique key
+        uniqueMap.set(p.permalink, p);
+      }
+      const uniquePosts = Array.from(uniqueMap.values());
+      return uniquePosts;
+    }
+
     function getCurrentSubredditFromUrl() {
-      // e.g. "https://www.reddit.com/r/SideProject/..."
       const currentUrl = window.location.href;
       const match = currentUrl.match(/reddit\.com\/r\/([^/]+)/);
       if (match && match[1]) return match[1];
       return "popular";
     }
 
-    /*************************************************
-     * 2) fetchAllRedditThreads: only calls the API
-     *************************************************/
-    async function fetchAllRedditThreads() {
-      const sub = getCurrentSubredditFromUrl();
-      console.log("[fetchAllRedditThreads] Using subreddit:", sub);
-      let data = [];
-      try {
-        data = await fetchRedditDataViaApi(sub);
-      } catch (err) {
-        console.warn("Reddit API fetch failed:", err);
-      }
-      return data;
-    }
-
-    /*************************************************
-     * 3) fetchRedditDataViaApi: 
-     *    (Skip scraping. Just go to the JSON feed.)
-     *************************************************/
-    async function fetchRedditDataViaApi(subreddit) {
-      // You can adjust limit=30 or whatever you need
-      const url = `https://www.reddit.com/r/${subreddit}.json?limit=100`;
+    // --------------- NEW: We'll pass feed type (hot/new/top) ---------------
+    async function fetchRedditDataViaApi(subreddit, feedType = "hot") {
+      const url = `https://www.reddit.com/r/${subreddit}/${feedType}.json?limit=50`;
       const resp = await fetch(url);
       if (!resp.ok) {
         throw new Error(`Reddit API error: ${resp.statusText}`);
@@ -414,7 +424,6 @@ function createGravitasSimulation(parentEl) {
       return rawPosts.map(p => mapRedditPostToSimple(p.data));
     }
 
-    // Helper: map the raw post data to our simpler structure
     function mapRedditPostToSimple(postData) {
       return {
         title: postData.title || "Untitled",
@@ -422,12 +431,10 @@ function createGravitasSimulation(parentEl) {
         commentCount: postData.num_comments || 0,
         permalink: postData.permalink || "",
         thumbnailUrl: getHighResImageFromRedditPost(postData),
-        // created_utc is in seconds; convert to ms
         createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now()
       };
     }
 
-    // Use preview images for higher resolution
     function getHighResImageFromRedditPost(d) {
       if (d.preview && d.preview.images && d.preview.images.length > 0) {
         const firstImage = d.preview.images[0];
@@ -441,9 +448,6 @@ function createGravitasSimulation(parentEl) {
       return "";
     }
 
-    /*************************************************
-     * 4) convert the simplified posts to DNs
-     *************************************************/
     function convertRedditPostsToDNs(posts) {
       const maxX = 700, maxY = 600, maxZ = 400;
       const now = Date.now();
@@ -470,9 +474,9 @@ function createGravitasSimulation(parentEl) {
             newnessFactor
           },
           position: new three__WEBPACK_IMPORTED_MODULE_0__.Vector3(
-            Math.random()*maxX,
-            Math.random()*maxY,
-            Math.random()*maxZ
+            Math.random() * maxX,
+            Math.random() * maxY,
+            Math.random() * maxZ
           ),
           velocity: new three__WEBPACK_IMPORTED_MODULE_0__.Vector3(0, 0, 0),
           mass: 1,
@@ -483,7 +487,6 @@ function createGravitasSimulation(parentEl) {
       });
     }
 
-    // Optional: fill up to ~1000 if you want a “full scene”
     function scaleDNsTo1000(dnData) {
       if (!dnData.length) return dnData;
       const origCount = dnData.length;
@@ -506,43 +509,25 @@ function createGravitasSimulation(parentEl) {
       return dnData;
     }
 
-    /*************************************************
-     * 5) init(): fetch from API, create scene, queue
-     *************************************************/
-    function init() {
-      debugOverlay = false;
-
-      fetchAllRedditThreads()
-        .then(posts => {
-          let rawDNs = convertRedditPostsToDNs(posts);
-          if (rawDNs.length < 1000) {
-            scaleDNsTo1000(rawDNs);
-          }
-
-          queuedDNs = rawDNs.slice();
-          createEmptyScene();
-          startQueueTimer();
-        })
-        .catch(err => {
-          console.error("Error fetching reddit threads:", err.message);
-          if (centerEl) {
-            centerEl.textContent = "Unable to fetch Reddit data. Sorry.";
-          }
-        });
+    // --------------- init() now merges multiple feed data ---------------
+    async function init() {
+      const posts = await fetchAllRedditThreads();
+      let rawDNs = convertRedditPostsToDNs(posts);
+      if (rawDNs.length < 1000) {
+        scaleDNsTo1000(rawDNs);
+      }
+      queuedDNs = rawDNs.slice();
+      createEmptyScene();
+      startQueueTimer();
     }
 
-    
     function randomPmnPosition() {
-      // Just pick random positions for your "PMN orbits"
       const x = 175 + Math.random() * 350;
       const y = 150 + Math.random() * 300;
       const z = 100 + Math.random() * 200;
       return [x, y, z];
     }
 
-    /*************************************************
-     * createEmptyScene + PMNs
-     *************************************************/
     function createEmptyScene() {
       const container = document.getElementById("simulation-container");
       if (!container) {
@@ -594,12 +579,9 @@ function createGravitasSimulation(parentEl) {
       animate();
     }
 
-    /*************************************************
-     * queue insertion
-     *************************************************/
     let queueTimerHandle = null;
-    const BATCH_SIZE = 50;         
-    const QUEUE_INTERVAL_MS = 3000; 
+    const BATCH_SIZE = 50;
+    const QUEUE_INTERVAL_MS = 3000;
 
     function startQueueTimer() {
       if (queueTimerHandle) clearInterval(queueTimerHandle);
@@ -623,7 +605,6 @@ function createGravitasSimulation(parentEl) {
       } else {
         recreateInstancedMesh(dnData.length);
       }
-
       recreateLineSegments(dnData.length);
 
       for (let i = startIndex; i < dnData.length; i++) {
@@ -632,27 +613,23 @@ function createGravitasSimulation(parentEl) {
       dnInstancedMesh.instanceMatrix.needsUpdate = true;
       dnInstancedMesh.instanceColor.needsUpdate = true;
       lineSegments.geometry.attributes.position.needsUpdate = true;
-
       recalcSceneCenter();
     }
 
     function createOrExpandInstancedMesh(newCount) {
       const baseDnGeom = new three__WEBPACK_IMPORTED_MODULE_0__.SphereGeometry(5, 16, 16);
       const dnMat = new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({ color: 0xffffff });
-
       dnInstancedMesh = new three__WEBPACK_IMPORTED_MODULE_0__.InstancedMesh(baseDnGeom, dnMat, newCount);
       dnInstancedMesh.instanceMatrix.setUsage(three__WEBPACK_IMPORTED_MODULE_0__.DynamicDrawUsage);
       dnInstancedMesh.instanceColor = new three__WEBPACK_IMPORTED_MODULE_0__.InstancedBufferAttribute(
         new Float32Array(newCount * 3), 3
       );
       dnInstancedMesh.instanceColor.setUsage(three__WEBPACK_IMPORTED_MODULE_0__.DynamicDrawUsage);
-
       scene.add(dnInstancedMesh);
     }
 
     function recreateInstancedMesh(newCount) {
       scene.remove(dnInstancedMesh);
-
       const baseDnGeom = new three__WEBPACK_IMPORTED_MODULE_0__.SphereGeometry(5, 16, 16);
       const dnMat = new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({ color: 0xffffff });
       const newMesh = new three__WEBPACK_IMPORTED_MODULE_0__.InstancedMesh(baseDnGeom, dnMat, newCount);
@@ -674,7 +651,6 @@ function createGravitasSimulation(parentEl) {
           newMesh.setColorAt(i, oldColor);
         }
       }
-
       dnInstancedMesh = newMesh;
       scene.add(dnInstancedMesh);
     }
@@ -683,13 +659,11 @@ function createGravitasSimulation(parentEl) {
       if (lineSegments) scene.remove(lineSegments);
       const lineGeo = new three__WEBPACK_IMPORTED_MODULE_0__.BufferGeometry();
       linePositions = new Float32Array(newCount * 2 * 3);
-
       const filamentMat = new three__WEBPACK_IMPORTED_MODULE_0__.LineBasicMaterial({
         color: "#808080",
         opacity: 0.5,
         transparent: true
       });
-
       lineSegments = new three__WEBPACK_IMPORTED_MODULE_0__.LineSegments(lineGeo, filamentMat);
       lineGeo.setAttribute("position", new three__WEBPACK_IMPORTED_MODULE_0__.BufferAttribute(linePositions, 3));
       scene.add(lineSegments);
@@ -724,9 +698,6 @@ function createGravitasSimulation(parentEl) {
       }
     }
 
-    /*************************************************
-     * The main animation loop
-     *************************************************/
     function animate() {
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
@@ -739,7 +710,6 @@ function createGravitasSimulation(parentEl) {
         timeSinceAbsorption = 0;
         timeBasedAbsorption();
       }
-
       renderer.render(scene, camera);
     }
 
@@ -759,17 +729,16 @@ function createGravitasSimulation(parentEl) {
         if (closestIdx >= 0) {
           const absorbedDn = dnData[closestIdx];
           absorbedDn.alive = false;
-
           const zeroMatrix = new three__WEBPACK_IMPORTED_MODULE_0__.Matrix4();
           dnInstancedMesh.setMatrixAt(closestIdx, zeroMatrix);
           dnInstancedMesh.instanceMatrix.needsUpdate = true;
 
           const imageUrl = absorbedDn.redditData.thumbnailUrl || "";
-          const postUrl = absorbedDn.redditData.permalink ? 
-            "https://www.reddit.com" + absorbedDn.redditData.permalink : "#";
+          const postUrl = absorbedDn.redditData.permalink
+            ? "https://www.reddit.com" + absorbedDn.redditData.permalink
+            : "#";
           const postTitle = absorbedDn.redditData.title || "(unnamed)";
           const upvoteCount = absorbedDn.redditData.upvoteCount || 0;
-
           showAbsorbedImage(imageUrl, postUrl, postTitle, upvoteCount);
 
           const idxLine = closestIdx * 6;
@@ -782,13 +751,19 @@ function createGravitasSimulation(parentEl) {
           lineSegments.geometry.attributes.position.needsUpdate = true;
 
           recalculateDnMasses(dnData.filter(d => d.alive));
+
+          // Push the new post to absorbedHistory, keep last 10, update UI
+          absorbedHistory.unshift({ title: postTitle, postUrl });
+          if (absorbedHistory.length > 10) {
+            absorbedHistory.pop();
+          }
+          updatePostListUI();
         }
       });
     }
 
     function applyForces() {
       const tmpMat = new three__WEBPACK_IMPORTED_MODULE_0__.Matrix4();
-
       for (let i = 0; i < dnData.length; i++) {
         const dn = dnData[i];
         if (!dn.alive) continue;
@@ -809,7 +784,6 @@ function createGravitasSimulation(parentEl) {
           rVec.normalize();
           totalForce.add(rVec.multiplyScalar(forceMag));
 
-          // Slingshot if very close
           if (L < 50) {
             const boostMag = (1*10)/(L*L);
             velocityBoost.add(rVec.clone().multiplyScalar(boostMag*0.05));
@@ -853,7 +827,6 @@ function createGravitasSimulation(parentEl) {
           linePositions[arrOffset + 0] = dn.position.x;
           linePositions[arrOffset + 1] = dn.position.y;
           linePositions[arrOffset + 2] = dn.position.z;
-
           linePositions[arrOffset + 3] = strongestPMN.mesh.position.x;
           linePositions[arrOffset + 4] = strongestPMN.mesh.position.y;
           linePositions[arrOffset + 5] = strongestPMN.mesh.position.z;
@@ -887,11 +860,16 @@ function createGravitasSimulation(parentEl) {
       camera.lookAt(sceneCenter);
     }
 
-    // Listen for "Discover" button => init
+    // Listen for "Threads" button => init
     const discoverBtn = document.getElementById("startButton");
     if (discoverBtn) {
       discoverBtn.addEventListener("click", () => {
-        init();
+        init().catch(err => {
+          console.error("Error fetching reddit threads:", err.message);
+          if (centerEl) {
+            centerEl.textContent = "Unable to fetch Reddit data. Sorry.";
+          }
+        });
         if (centerEl) {
           centerEl.textContent = "";
         }
