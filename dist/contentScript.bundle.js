@@ -114,7 +114,7 @@ function createGravitasSimulation(parentEl) {
   postListPanel.style.zIndex = "9999";
   container.appendChild(postListPanel);
 
-  // Absorbed Image Container (512px wide)
+  // Absorbed Image Container (480px wide)
   const absorbedImageContainer = document.createElement("div");
   absorbedImageContainer.id = "absorbedImageContainer";
   absorbedImageContainer.style.position = "absolute";
@@ -123,9 +123,9 @@ function createGravitasSimulation(parentEl) {
   absorbedImageContainer.style.transform = "translate(-50%, -50%)";
   absorbedImageContainer.style.zIndex = "9999";
   absorbedImageContainer.style.display = "inline-block";
-  absorbedImageContainer.style.minWidth = "512px";
-  absorbedImageContainer.style.maxWidth = "512px";
-  absorbedImageContainer.style.maxHeight = "512px";
+  absorbedImageContainer.style.minWidth = "480px";
+  absorbedImageContainer.style.maxWidth = "480px";
+  absorbedImageContainer.style.maxHeight = "480px";
   absorbedImageContainer.style.overflow = "hidden";
 
   const absorbedImageLink = document.createElement("a");
@@ -143,7 +143,7 @@ function createGravitasSimulation(parentEl) {
   absorbedImage.style.display = "block";
   absorbedImage.style.width = "auto";
   absorbedImage.style.height = "auto";
-  absorbedImage.style.minWidth = "512px";
+  absorbedImage.style.minWidth = "480px";
   absorbedImage.style.maxWidth = "100%";
   absorbedImage.style.maxHeight = "100%";
   absorbedImage.style.objectFit = "contain";
