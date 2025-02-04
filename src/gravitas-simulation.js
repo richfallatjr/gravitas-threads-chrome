@@ -468,8 +468,41 @@ export function createGravitasSimulation(parentEl) {
       return rawPosts.map((p) => mapRedditPostToSimple(p.data));
     }
 
+    function isPostActuallyAGif(postData) {
+      // 1) Check if domain is redgifs
+      if (postData.domain === "redgifs.com") {
+        return true;
+      }
+      // 2) Or if secure_media has .type === "redgifs.com"
+      if (
+        postData.secure_media &&
+        postData.secure_media.type === "redgifs.com"
+      ) {
+        return true;
+      }
+      // 3) Or if media_embed.content has "redgifs.com/ifr"
+      if (
+        postData.media_embed &&
+        typeof postData.media_embed.content === "string" &&
+        postData.media_embed.content.includes("redgifs.com/ifr")
+      ) {
+        return true;
+      }
+    
+      // 4) Otherwise, check if thumbnailUrl ends with .gif
+      // (for real .gif links)
+      // e.g. your existing logic
+      if (postData.thumbnailUrl && postData.thumbnailUrl.toLowerCase().endsWith(".gif")) {
+        return true;
+      }
+    
+      return false;
+    }
+    
+
     function mapRedditPostToSimple(postData) {
       // check if it's a reddit video
+      const isActuallyAGif = isPostActuallyAGif(postData);
       const isVideoPost = postData.is_video &&
                           postData.media &&
                           postData.media.reddit_video &&
@@ -486,7 +519,8 @@ export function createGravitasSimulation(parentEl) {
 
           isVideo: true,
           videoUrl: postData.media.reddit_video.fallback_url,
-          thumbnailUrl: getHighResImageFromRedditPost(postData)
+          thumbnailUrl: getHighResImageFromRedditPost(postData),
+          isGif: isActuallyAGif
         };
       } else {
         // image/gif
