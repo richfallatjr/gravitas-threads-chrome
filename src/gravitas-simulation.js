@@ -1,8 +1,21 @@
+/************************************************************
+ * Full Gravitas (Large, Merged Version)
+ * - Subreddit + user path detection
+ * - FEED_TYPES = ["hot", "new", "top", "topYear"]
+ * - Skip auto-absorption for GIF
+ * - Mark GIF spheres lighter
+ * - Show info pane for everything else on auto-absorb
+ * - On click, always show the info pane (even GIF)
+ * - Queue-based insertion, multiple PMNs, pause/play
+ ************************************************************/
+
 import * as THREE from 'three';
 
 export function createGravitasSimulation(parentEl) {
 
-  // 1. DOM container creation
+  // ==============================
+  // 1. Create the container & sub-elements in the DOM
+  // ==============================
   const container = document.createElement("div");
   container.id = "simulation-container";
   container.style.position = "relative";
@@ -11,6 +24,7 @@ export function createGravitasSimulation(parentEl) {
   container.style.margin = "0 auto";
   container.style.backgroundColor = "#F2F2F2";
 
+  // Centered text
   const centeredText = document.createElement("div");
   centeredText.id = "centeredText";
   centeredText.style.position = "absolute";
@@ -25,7 +39,7 @@ export function createGravitasSimulation(parentEl) {
   centeredText.innerHTML = "<strong>Reddit Threads</strong> driven by physics.";
   container.appendChild(centeredText);
 
-  // Top center container (logo + discover button)
+  // Top center container (logo + discover button + pause btn)
   const topCenterContainer = document.createElement("div");
   topCenterContainer.id = "top-center-container";
   topCenterContainer.style.position = "absolute";
@@ -37,6 +51,7 @@ export function createGravitasSimulation(parentEl) {
   topCenterContainer.style.alignItems = "center";
   topCenterContainer.style.gap = "20px";
 
+  // Simple Logo
   const logo = document.createElement("img");
   logo.id = "logo";
   logo.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/gravitas-logo-solo.png";
@@ -51,6 +66,7 @@ export function createGravitasSimulation(parentEl) {
   logo.style.msUserSelect = "none";
   logo.style.MozUserSelect = "none";
 
+  // "Threads" Button
   const discoverBtn = document.createElement("button");
   discoverBtn.id = "startButton";
   discoverBtn.textContent = "Threads";
@@ -68,7 +84,7 @@ export function createGravitasSimulation(parentEl) {
   discoverBtn.style.msUserSelect = "none";
   discoverBtn.style.MozUserSelect = "none";
 
-  // NEW: Play/Pause button
+  // Play/Pause Button
   const togglePlayBtn = document.createElement("button");
   togglePlayBtn.id = "togglePlayButton";
   togglePlayBtn.textContent = "Pause";
@@ -92,7 +108,7 @@ export function createGravitasSimulation(parentEl) {
   topCenterContainer.appendChild(togglePlayBtn);
   container.appendChild(topCenterContainer);
 
-  // 2. "Post List" panel
+  // "Post List" panel
   const postListPanel = document.createElement("div");
   postListPanel.id = "postListPanel";
   postListPanel.style.position = "absolute";
@@ -115,7 +131,7 @@ export function createGravitasSimulation(parentEl) {
   postListPanel.style.msUserSelect = "none";
   postListPanel.style.MozUserSelect = "none";
 
-  // Absorbed Image Container (480px wide)
+  // Absorbed Image Container (simple)
   const absorbedImageContainer = document.createElement("div");
   absorbedImageContainer.id = "absorbedImageContainer";
   absorbedImageContainer.style.position = "absolute";
@@ -146,7 +162,7 @@ export function createGravitasSimulation(parentEl) {
 
   const absorbedImage = document.createElement("img");
   absorbedImage.id = "absorbedImage";
-  absorbedImage.src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="; // blank fallback
+  absorbedImage.src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="; 
   absorbedImage.alt = "Reddit Preview Image";
   absorbedImage.style.display = "block";
   absorbedImage.style.width = "auto";
@@ -203,30 +219,72 @@ export function createGravitasSimulation(parentEl) {
   absorbedDetailsContainer.appendChild(detailsPrice);
   container.appendChild(absorbedDetailsContainer);
 
-  // Add container to DOM
+  // Finally, add this container to the user-chosen parent
   parentEl.appendChild(container);
 
   // For text override
   const centerEl = document.getElementById("centeredText");
 
   // =====================================
-  //  IIFE to hold our logic
+  //  IIFE to hold our big logic
   // =====================================
   (function() {
 
-    // --------------- NEW: We'll store multiple feed types. ---------------
+    // Global data
+    let dnData = [];
+    let queuedDNs = [];
+    let lineSegments = null;
+    let linePositions = null;
+    let scene, camera, renderer;
+    let dnInstancedMesh = null;
+    let allMeshes = [];
+    let clock;
+    let timeSinceAbsorption = 0;
+    const ABSORPTION_INTERVAL = 2.0;
+
+    const boundaryX = 700, boundaryY = 600, boundaryZ = 400;
+    const DRAG_THRESHOLD = 5;
+    let isMouseDown = false;
+    let isDragging = false;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+
+    let orbitAzimuth = 0;
+    let orbitPolar = Math.PI * 0.5;
+    let orbitRadius = 400;
+    let sceneCenter = new THREE.Vector3();
+    let amplitude = new THREE.Vector3(20, 20, 20);
+
+    let isPaused = false; // for play/pause
+    // We'll store multiple feed types
     const FEED_TYPES = ["hot", "new", "top", "topYear"];
+    let absorbedHistory = [];
 
-    const sub = getCurrentRedditPathFromUrl() || "popular";
-      console.log("[fetchAllRedditThreads] Using multiple feed types for r/", sub);
+    // PMNs: upvoteFactor, commentFactor, newnessFactor
+    const pmnMetrics = [
+      { metric: "upvoteFactor",  mass: 20 },
+      { metric: "commentFactor", mass: 12 },
+      { metric: "newnessFactor", mass: 15 }
+    ];
+    let pmnData = pmnMetrics.map(m => ({
+      mesh: null,
+      type: "PMN",
+      mass: m.mass,
+      metric: m.metric,
+      position: null
+    }));
 
-    // We'll keep track of the last 10 absorbed posts
-    const absorbedHistory = [];
+    // Colors for click
+    const clickColors = ["#FF6188", "#A9DC76", "#FFD866", "#78DCE8", "#AB9DF2"];
+
+    /************************************************************
+     * HELPER: POST LIST
+     ************************************************************/
     function updatePostListUI() {
       const panel = document.getElementById("postListPanel");
       panel.innerHTML = "";
       const heading = document.createElement("div");
-      heading.textContent = "r/" + sub + " Posts:";
+      heading.textContent = "Absorbed Posts:";
       heading.style.fontWeight = "bold";
       heading.style.marginBottom = "8px";
       panel.appendChild(heading);
@@ -250,55 +308,71 @@ export function createGravitasSimulation(parentEl) {
       }
     }
 
-    const clickColors = ["#FF6188", "#A9DC76", "#FFD866", "#78DCE8", "#AB9DF2"];
+    /************************************************************
+     * HELPER: Absorbed Image
+     ************************************************************/
+    function showAbsorbedImage(imageUrl, redditUrl, postTitle, upvoteCount) {
+      const container = document.getElementById("absorbedImageContainer");
+      const link = document.getElementById("absorbedImageLink");
+      const img = document.getElementById("absorbedImage");
 
-    let dnInstancedMesh = null;
-    let dnData = [];
-    let queuedDNs = [];
-    let lineSegments = null;
-    let linePositions = null;
-    let scene, camera, renderer;
-    let allMeshes = [];
-    let clock;
-    let timeSinceAbsorption = 0;
-    const ABSORPTION_INTERVAL = 2.0;
+      if (link) link.href = redditUrl || "#";
+      if (img) {
+        img.src = imageUrl || "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+        img.onload = () => {
+          if (container) container.style.display = "block";
+          showDetailsPane(postTitle, upvoteCount);
+        };
+        img.onerror = () => {
+          if (container) container.style.display = "block";
+          showDetailsPane(postTitle, upvoteCount);
+        };
+      }
+    }
 
-    const boundaryX = 700, boundaryY = 600, boundaryZ = 400;
-    const G = 1;
-    const softening = 5;
-    const maxForce = 15;
-    const maxVelocity = 20;
+    function showDetailsPane(title, upvoteCount) {
+      const pane = document.getElementById("absorbedDetailsContainer");
+      const titleEl = document.getElementById("detailsTitle");
+      const priceEl = document.getElementById("detailsPrice");
 
-    let orbitAzimuth = 0;
-    let orbitPolar = Math.PI * 0.5;
-    let orbitRadius = 400;
-    let sceneCenter = new THREE.Vector3();
-    let amplitude = new THREE.Vector3(20, 20, 20);
+      if (titleEl) titleEl.textContent = title || "(untitled)";
+      if (priceEl) {
+        priceEl.textContent = upvoteCount ? `⬆️ Upvotes: ${upvoteCount}` : "No upvotes yet";
+      }
+      if (pane) pane.style.display = "block";
+    }
 
-    let isMouseDown = false;
-    let isDragging = false;
-    let lastMouseX = 0;
-    let lastMouseY = 0;
-    const DRAG_THRESHOLD = 5;
+    function hideDetailsPane() {
+      const pane = document.getElementById("absorbedDetailsContainer");
+      if (pane) pane.style.display = "none";
 
-    // NEW: isPaused toggles physics updates
-    let isPaused = false;
+      const imgCont = document.getElementById("absorbedImageContainer");
+      if (imgCont) imgCont.style.display = "none";
+    }
 
-    // 3 PMNs: upvoteFactor, commentFactor, newnessFactor
-    const pmnMetrics = [
-      { metric: "upvoteFactor",  mass: 20 },
-      { metric: "commentFactor", mass: 12 },
-      { metric: "newnessFactor", mass: 15 },
-    ];
-    let pmnData = pmnMetrics.map(m => ({
-      mesh: null,
-      type: "PMN",
-      mass: m.mass,
-      metric: m.metric,
-      position: null
-    }));
+    /************************************************************
+     * Clicking a sphere
+     ************************************************************/
+    function showClickedDnBriefly(dn, instanceId) {
+      const title = dn.redditData?.title || "(untitled)";
+      const postUrl = dn.redditData?.permalink
+        ? "https://www.reddit.com" + dn.redditData.permalink
+        : "#";
+      const imageUrl = dn.redditData?.thumbnailUrl || "";
+      const upvoteCount = dn.redditData?.upvoteCount || 0;
 
-    // Handle orbit dragging
+      // Always show the image/gif if user clicks
+      showAbsorbedImage(imageUrl, postUrl, title, upvoteCount);
+
+      // Recolor the instance
+      const newColor = new THREE.Color(clickColors[Math.floor(Math.random() * clickColors.length)]);
+      dnInstancedMesh.setColorAt(instanceId, newColor);
+      dnInstancedMesh.instanceColor.needsUpdate = true;
+    }
+
+    /************************************************************
+     * Orbit drag
+     ************************************************************/
     function setupInteraction(domEl) {
       const raycaster = new THREE.Raycaster();
       const mouse = new THREE.Vector2();
@@ -348,62 +422,186 @@ export function createGravitasSimulation(parentEl) {
       });
     }
 
-    // Show the big image in the center
-    function showAbsorbedImage(imageUrl, redditUrl, postTitle, upvoteCount) {
-      const container = document.getElementById("absorbedImageContainer");
-      const link = document.getElementById("absorbedImageLink");
-      const img = document.getElementById("absorbedImage");
-      if (link) link.href = redditUrl || "#";
-      if (img) {
-        img.src = imageUrl || "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
-        img.onload = () => {
-          if (container) container.style.display = "block";
-          showDetailsPane(postTitle, upvoteCount);
+    /************************************************************
+     * 2) Subreddit-based logic
+     ************************************************************/
+    function getCurrentRedditPathFromUrl() {
+      const currentUrl = window.location.href;
+
+      // user-based
+      let match = currentUrl.match(/reddit\.com\/user\/([^/]+)/);
+      if (match && match[1]) {
+        return "user/" + match[1];
+      }
+
+      // subreddit-based
+      match = currentUrl.match(/reddit\.com\/r\/([^/]+)/);
+      if (match && match[1]) {
+        return match[1];
+      }
+
+      return "popular";
+    }
+
+    async function fetchRedditDataViaApi(redditPath, feedType = "hot") {
+      let url;
+      // user or subreddit
+      if (redditPath.startsWith("user/")) {
+        // user
+        const username = redditPath.split("/")[1];
+        url = `https://www.reddit.com/user/${username}/submitted.json?limit=100`;
+      } else {
+        // sub
+        if (feedType === "topYear") {
+          url = `https://www.reddit.com/r/${redditPath}/top.json?t=year&limit=100`;
+        } else {
+          url = `https://www.reddit.com/r/${redditPath}/${feedType}.json?limit=100`;
+        }
+      }
+
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        throw new Error(`Reddit API error: ${resp.status} - ${resp.statusText}`);
+      }
+      const json = await resp.json();
+      const rawPosts = json.data?.children || [];
+      return rawPosts.map((p) => mapRedditPostToSimple(p.data));
+    }
+
+    function mapRedditPostToSimple(postData) {
+      // check if it's a reddit video
+      const isVideoPost = postData.is_video &&
+                          postData.media &&
+                          postData.media.reddit_video &&
+                          postData.media.reddit_video.fallback_url;
+
+      if (isVideoPost) {
+        // treat it as mp4
+        return {
+          title: postData.title || "Untitled",
+          upvoteCount: postData.ups || 0,
+          commentCount: postData.num_comments || 0,
+          permalink: postData.permalink || "",
+          createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
+
+          isVideo: true,
+          videoUrl: postData.media.reddit_video.fallback_url,
+          thumbnailUrl: getHighResImageFromRedditPost(postData)
         };
-        img.onerror = () => {
-          if (container) container.style.display = "block";
-          showDetailsPane(postTitle, upvoteCount);
+      } else {
+        // image/gif
+        return {
+          title: postData.title || "Untitled",
+          upvoteCount: postData.ups || 0,
+          commentCount: postData.num_comments || 0,
+          permalink: postData.permalink || "",
+          createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
+
+          isVideo: false,
+          videoUrl: "",
+          thumbnailUrl: getHighResImageFromRedditPost(postData)
         };
       }
     }
 
-    // Show the text details below the image
-    function showDetailsPane(title, upvoteCount) {
-      const pane = document.getElementById("absorbedDetailsContainer");
-      const titleEl = document.getElementById("detailsTitle");
-      const priceEl = document.getElementById("detailsPrice");
-
-      if (titleEl) titleEl.textContent = title || "(untitled)";
-      if (priceEl) {
-        priceEl.textContent = upvoteCount ? `⬆️ Upvotes: ${upvoteCount}` : "No upvotes yet";
+    function getHighResImageFromRedditPost(d) {
+      // if it ends with .gif
+      if (d.url && d.url.endsWith(".gif")) {
+        return d.url;
       }
-      if (pane) pane.style.display = "block";
+      // check preview
+      if (d.preview && d.preview.images && d.preview.images[0]) {
+        const previewObj = d.preview.images[0];
+        const variants = previewObj.variants;
+        if (variants && variants.gif && variants.gif.source && variants.gif.source.url) {
+          return variants.gif.source.url.replace(/&amp;/g, "&");
+        }
+      }
+      // fallback
+      if (d.preview && d.preview.images && d.preview.images.length>0) {
+        const firstImage = d.preview.images[0];
+        if (firstImage.source && firstImage.source.url) {
+          return firstImage.source.url.replace(/&amp;/g, "&");
+        }
+      }
+      // fallback to thumbnail
+      if (d.thumbnail && d.thumbnail.startsWith("http")) {
+        return d.thumbnail;
+      }
+      return "";
     }
 
-    function hideDetailsPane() {
-      const pane = document.getElementById("absorbedDetailsContainer");
-      if (pane) pane.style.display = "none";
-
-      const imgCont = document.getElementById("absorbedImageContainer");
-      if (imgCont) imgCont.style.display = "none";
+    /************************************************************
+     * 3) Combined fetch logic: multiple feed
+     ************************************************************/
+    async function fetchAllRedditThreads() {
+      const redditPath = getCurrentRedditPathFromUrl();
+      // user vs sub
+      if (redditPath.startsWith("user/")) {
+        // fetch once
+        const posts = await fetchRedditDataViaApi(redditPath, "hot");
+        return posts;
+      } else {
+        // sub => multiple feeds
+        let allPosts = [];
+        for (const type of FEED_TYPES) {
+          const postsForType = await fetchRedditDataViaApi(redditPath, type);
+          allPosts = allPosts.concat(postsForType);
+        }
+        // deduplicate by permalink
+        const uniqueMap = new Map();
+        for (let p of allPosts) {
+          uniqueMap.set(p.permalink, p);
+        }
+        const uniquePosts = Array.from(uniqueMap.values());
+        return uniquePosts;
+      }
     }
 
-    // Clicking on a sphere
-    function showClickedDnBriefly(dn, instanceId) {
-      const title = dn.redditData?.title || "(untitled)";
-      const postUrl = dn.redditData?.permalink
-        ? "https://www.reddit.com" + dn.redditData.permalink
-        : "#";
-      const imageUrl = dn.redditData?.thumbnailUrl || "";
-      const upvoteCount = dn.redditData?.upvoteCount || 0;
-      showAbsorbedImage(imageUrl, postUrl, title, upvoteCount);
+    /************************************************************
+     * Convert to DN
+     ************************************************************/
+    function convertRedditPostsToDNs(posts) {
+      const maxX = 700, maxY = 600, maxZ = 400;
+      const now = Date.now();
 
-      const newColor = new THREE.Color(clickColors[Math.floor(Math.random() * clickColors.length)]);
-      dnInstancedMesh.setColorAt(instanceId, newColor);
-      dnInstancedMesh.instanceColor.needsUpdate = true;
+      return posts.map(post => {
+        const ageDays = (now - post.createdAt)/(1000*60*60*24);
+        const maxDays = 365;
+        const clamped = Math.min(ageDays, maxDays);
+        const newnessFactor = 1 - (clamped/maxDays);
+
+        const upvoteFactor = Math.min(post.upvoteCount/5000, 1.0);
+        const commentFactor = Math.min(post.commentCount/500, 1.0);
+
+        // detect if .gif => skip auto absorption
+        const isGif = post.thumbnailUrl.toLowerCase().endsWith(".gif");
+
+        return {
+          redditData: {
+            title: post.title,
+            upvoteCount: post.upvoteCount,
+            permalink: post.permalink,
+            thumbnailUrl: post.thumbnailUrl,
+            isGif
+          },
+          attributes: {
+            upvoteFactor,
+            commentFactor,
+            newnessFactor
+          },
+          position: new THREE.Vector3(
+            Math.random()*maxX,
+            Math.random()*maxY,
+            Math.random()*maxZ
+          ),
+          velocity: new THREE.Vector3(0,0,0),
+          mass: 1,
+          alive: true
+        };
+      });
     }
 
-    // Mass logic
     function calculateDnMass(dn) {
       return pmnData.reduce((total, pmn) => {
         switch (pmn.metric) {
@@ -418,212 +616,19 @@ export function createGravitasSimulation(parentEl) {
         }
       }, 1);
     }
+
     function recalculateDnMasses(dnArray) {
       dnArray.forEach(dn => {
         dn.mass = calculateDnMass(dn);
       });
     }
 
-    // Fetch multiple feeds from subreddit
-    async function fetchAllRedditThreads() {
-      const redditPath = getCurrentRedditPathFromUrl();
-    
-      // If it's a user path, just fetch “submitted” once
-      if (redditPath.startsWith("user/")) {
-        const posts = await fetchRedditDataViaApi(redditPath, "hot");
-        return posts; // or just "submitted" ignoring "hot" etc.
-      }
-    
-      // Otherwise, we do your multiple sub feed approach
-      let allPosts = [];
-      for (const type of FEED_TYPES) {
-        const postsForType = await fetchRedditDataViaApi(redditPath, type);
-        allPosts = allPosts.concat(postsForType);
-      }
-    
-      // deduplicate
-      const uniqueMap = new Map();
-      for (let p of allPosts) {
-        uniqueMap.set(p.permalink, p);
-      }
-      const uniquePosts = Array.from(uniqueMap.values());
-      return uniquePosts;
-    }
-    
-
-    function getCurrentRedditPathFromUrl() {
-      const currentUrl = window.location.href;
-      
-      // 1) Check if it's user-based: e.g. https://www.reddit.com/user/spez
-      let match = currentUrl.match(/reddit\.com\/user\/([^/]+)/);
-      if (match && match[1]) {
-        // Return 'user/spez'
-        return "user/" + match[1];
-      }
-    
-      // 2) Otherwise, check if it's subreddit-based: e.g. https://www.reddit.com/r/pics
-      match = currentUrl.match(/reddit\.com\/r\/([^/]+)/);
-      if (match && match[1]) {
-        // Return just 'pics' or 'funny'
-        return match[1];
-      }
-    
-      // 3) Default fallback
-      return "popular";
-    }
-
-    async function fetchRedditDataViaApi(redditPath, feedType = "hot") {
-      let url;
-    
-      // 1) Detect if 'redditPath' is actually a user (e.g. 'user/spez')
-      if (redditPath.startsWith("user/")) {
-        // Extract the username => 'spez'
-        const username = redditPath.split("/")[1];
-        // We’ll fetch that user’s submissions. (You could also do /comments.json if needed.)
-        url = `https://www.reddit.com/user/${username}/submitted.json?limit=100`;
-      } else {
-        // 2) Otherwise, treat it as a subreddit name (e.g. 'funny', 'popular', etc.)
-        if (feedType === "topYear") {
-          url = `https://www.reddit.com/r/${redditPath}/top.json?t=year&limit=100`;
-        } else {
-          url = `https://www.reddit.com/r/${redditPath}/${feedType}.json?limit=100`;
-        }
-      }
-    
-      const resp = await fetch(url);
-      if (!resp.ok) {
-        throw new Error(`Reddit API error: ${resp.status} - ${resp.statusText}`);
-      }
-    
-      const json = await resp.json();
-      const rawPosts = json.data?.children || [];
-      return rawPosts.map((p) => mapRedditPostToSimple(p.data));
-    }
-    
-    
-
-    function mapRedditPostToSimple(postData) {
-      // 1) Check if this is a Reddit video (MP4)
-      const isVideoPost = postData.is_video && 
-                          postData.media && 
-                          postData.media.reddit_video &&
-                          postData.media.reddit_video.fallback_url;
-    
-      if (isVideoPost) {
-        // It's really an MP4 "gif" => use <video> in your UI
-        return {
-          title: postData.title || "Untitled",
-          upvoteCount: postData.ups || 0,
-          commentCount: postData.num_comments || 0,
-          permalink: postData.permalink || "",
-          createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
-    
-          // Fields for video playback
-          isVideo: true,
-          videoUrl: postData.media.reddit_video.fallback_url,
-          // Optional: keep a thumbnail in case you want to show a preview
-          thumbnailUrl: getHighResImageFromRedditPost(postData),
-        };
-      } else {
-        // 2) Otherwise, treat it as an image/GIF post
-        return {
-          title: postData.title || "Untitled",
-          upvoteCount: postData.ups || 0,
-          commentCount: postData.num_comments || 0,
-          permalink: postData.permalink || "",
-          createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
-    
-          // Not a video
-          isVideo: false,
-          videoUrl: "",
-          // Use your existing helper to get the best image/GIF link
-          thumbnailUrl: getHighResImageFromRedditPost(postData),
-        };
-      }
-    }
-    
-
-    function getHighResImageFromRedditPost(d) {
-      // 1) If the post’s URL itself ends with .gif, use it
-      if (d.url && d.url.endsWith(".gif")) {
-        return d.url;
-      }
-    
-      // 2) Check for actual GIF variants in the preview
-      if (d.preview && d.preview.images && d.preview.images[0]) {
-        const previewObj = d.preview.images[0];
-        const variants = previewObj.variants;
-    
-        // If there's a .gif variant, grab that
-        if (variants && variants.gif && variants.gif.source && variants.gif.source.url) {
-          return variants.gif.source.url.replace(/&amp;/g, "&");
-        }
-      }
-    
-      // 3) Fallback to your existing "high-res" logic
-      if (d.preview && d.preview.images && d.preview.images.length > 0) {
-        const firstImage = d.preview.images[0];
-        if (firstImage.source && firstImage.source.url) {
-          return firstImage.source.url.replace(/&amp;/g, "&");
-        }
-      }
-    
-      // 4) Finally, fallback to thumbnail if it’s a valid URL
-      if (d.thumbnail && d.thumbnail.startsWith("http")) {
-        return d.thumbnail;
-      }
-    
-      // Otherwise, no usable image found
-      return "";
-    }
-    
-
-    // Convert posts to DN objects
-    function convertRedditPostsToDNs(posts) {
-      const maxX = 700, maxY = 600, maxZ = 400;
-      const now = Date.now();
-
-      return posts.map(post => {
-        const ageDays = (now - post.createdAt) / (1000 * 60 * 60 * 24);
-        const maxDays = 365;
-        const clamped = Math.min(ageDays, maxDays);
-        const newnessFactor = 1 - (clamped / maxDays);
-
-        const upvoteFactor = Math.min(post.upvoteCount / 5000, 1.0);
-        const commentFactor = Math.min(post.commentCount / 500, 1.0);
-
-        const dn = {
-          redditData: {
-            title: post.title,
-            upvoteCount: post.upvoteCount,
-            permalink: post.permalink,
-            thumbnailUrl: post.thumbnailUrl
-          },
-          attributes: {
-            upvoteFactor,
-            commentFactor,
-            newnessFactor
-          },
-          position: new THREE.Vector3(
-            Math.random() * maxX,
-            Math.random() * maxY,
-            Math.random() * maxZ
-          ),
-          velocity: new THREE.Vector3(0, 0, 0),
-          mass: 1,
-          alive: true
-        };
-        dn.mass = calculateDnMass(dn);
-        return dn;
-      });
-    }
-
-    // For bigger visual effect, fill up to 1000 DN
+    // fill up to 1000
     function scaleDNsTo1000(dnData) {
       if (!dnData.length) return dnData;
       const origCount = dnData.length;
-      while (dnData.length < 1000) {
-        const src = dnData[dnData.length % origCount];
+      while (dnData.length<1000) {
+        const src = dnData[dnData.length%origCount];
         const clone = {
           redditData: { ...src.redditData },
           attributes: { ...src.attributes },
@@ -641,31 +646,34 @@ export function createGravitasSimulation(parentEl) {
       return dnData;
     }
 
-    // init => fetch posts
+    /************************************************************
+     * init => fetch => create scene => queue
+     ************************************************************/
     async function init() {
-      const posts = await fetchAllRedditThreads();
-      let rawDNs = convertRedditPostsToDNs(posts);
-      if (rawDNs.length < 1000) {
-        scaleDNsTo1000(rawDNs);
+      try {
+        const posts = await fetchAllRedditThreads();
+        let rawDNs = convertRedditPostsToDNs(posts);
+        // set mass
+        rawDNs.forEach(dn => {
+          dn.mass = calculateDnMass(dn);
+        });
+        if (rawDNs.length<1000) {
+          scaleDNsTo1000(rawDNs);
+        }
+        queuedDNs = rawDNs.slice();
+        createEmptyScene();
+        startQueueTimer();
+      } catch(err) {
+        console.error("Error fetching reddit threads:", err.message);
+        if (centerEl) {
+          centerEl.textContent = "Unable to fetch Reddit data. Sorry.";
+        }
       }
-      queuedDNs = rawDNs.slice();
-      createEmptyScene();
-      startQueueTimer();
-    }
-
-    function randomPmnPosition() {
-      const x = 175 + Math.random() * 350;
-      const y = 150 + Math.random() * 300;
-      const z = 100 + Math.random() * 200;
-      return [x, y, z];
     }
 
     function createEmptyScene() {
       const container = document.getElementById("simulation-container");
-      if (!container) {
-        console.warn("No simulation container found!");
-        return;
-      }
+      if (!container) return;
 
       scene = new THREE.Scene();
       scene.background = new THREE.Color("#F2F2F2");
@@ -676,19 +684,23 @@ export function createGravitasSimulation(parentEl) {
         0.1,
         2000
       );
-      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer = new THREE.WebGLRenderer({ antialias:true });
       renderer.setSize(container.offsetWidth, container.offsetHeight);
       container.appendChild(renderer.domElement);
 
       // Create PMNs
       pmnData.forEach(p => {
-        p.position = randomPmnPosition();
+        p.position = new THREE.Vector3(
+          175 + Math.random()*350,
+          150 + Math.random()*300,
+          100 + Math.random()*200
+        );
       });
-      const sphereGeom = new THREE.SphereGeometry(5, 16, 16);
-      const pmnMat = new THREE.MeshBasicMaterial({ color: "#808080" });
+      const sphereGeom = new THREE.SphereGeometry(5,16,16);
+      const pmnMat = new THREE.MeshBasicMaterial({ color:"#808080" });
       pmnData.forEach(p => {
         const mesh = new THREE.Mesh(sphereGeom, pmnMat);
-        mesh.position.set(...p.position);
+        mesh.position.copy(p.position);
         scene.add(mesh);
         p.mesh = mesh;
         p.type = "PMN";
@@ -696,22 +708,20 @@ export function createGravitasSimulation(parentEl) {
       });
 
       dnData = [];
-      dnInstancedMesh = null; 
+      dnInstancedMesh = null;
       linePositions = null;
       lineSegments = null;
-
-      scene.add(new THREE.AmbientLight(0xffffff, 1));
+      scene.add(new THREE.AmbientLight(0xffffff,1));
 
       orbitAzimuth = 0;
-      orbitPolar = Math.PI * 0.5;
-      orbitRadius = 400;
+      orbitPolar   = Math.PI*0.5;
+      orbitRadius  = 400;
 
       setupInteraction(container);
       clock = new THREE.Clock();
       animate();
     }
 
-    // Queue logic
     let queueTimerHandle = null;
     const BATCH_SIZE = 50;
     const QUEUE_INTERVAL_MS = 3000;
@@ -719,12 +729,12 @@ export function createGravitasSimulation(parentEl) {
     function startQueueTimer() {
       if (queueTimerHandle) clearInterval(queueTimerHandle);
       queueTimerHandle = setInterval(() => {
-        if (queuedDNs.length === 0) {
+        if (queuedDNs.length===0) {
           clearInterval(queueTimerHandle);
           queueTimerHandle = null;
           return;
         }
-        const batch = queuedDNs.splice(0, BATCH_SIZE);
+        const batch = queuedDNs.splice(0,BATCH_SIZE);
         addDNsToScene(batch);
       }, QUEUE_INTERVAL_MS);
     }
@@ -740,7 +750,7 @@ export function createGravitasSimulation(parentEl) {
       }
       recreateLineSegments(dnData.length);
 
-      for (let i = startIndex; i < dnData.length; i++) {
+      for (let i=startIndex; i<dnData.length; i++) {
         updateOneInstance(i, dnData[i]);
       }
       dnInstancedMesh.instanceMatrix.needsUpdate = true;
@@ -750,12 +760,12 @@ export function createGravitasSimulation(parentEl) {
     }
 
     function createOrExpandInstancedMesh(newCount) {
-      const baseDnGeom = new THREE.SphereGeometry(5, 16, 16);
-      const dnMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      const baseDnGeom = new THREE.SphereGeometry(5,16,16);
+      const dnMat = new THREE.MeshBasicMaterial({ color:0xffffff });
       dnInstancedMesh = new THREE.InstancedMesh(baseDnGeom, dnMat, newCount);
       dnInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       dnInstancedMesh.instanceColor = new THREE.InstancedBufferAttribute(
-        new Float32Array(newCount * 3), 3
+        new Float32Array(newCount*3),3
       );
       dnInstancedMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
       scene.add(dnInstancedMesh);
@@ -763,24 +773,25 @@ export function createGravitasSimulation(parentEl) {
 
     function recreateInstancedMesh(newCount) {
       scene.remove(dnInstancedMesh);
-      const baseDnGeom = new THREE.SphereGeometry(5, 16, 16);
-      const dnMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+      const baseDnGeom = new THREE.SphereGeometry(5,16,16);
+      const dnMat = new THREE.MeshBasicMaterial({ color:0xffffff });
       const newMesh = new THREE.InstancedMesh(baseDnGeom, dnMat, newCount);
       newMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       newMesh.instanceColor = new THREE.InstancedBufferAttribute(
-        new Float32Array(newCount * 3), 3
+        new Float32Array(newCount*3),3
       );
       newMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
 
       if (dnInstancedMesh) {
         const oldCount = dnInstancedMesh.count;
-        for (let i = 0; i < oldCount; i++) {
+        for (let i=0; i<oldCount; i++) {
           const tmpMat = new THREE.Matrix4();
           dnInstancedMesh.getMatrixAt(i, tmpMat);
           newMesh.setMatrixAt(i, tmpMat);
 
           const oldColor = new THREE.Color();
-          dnInstancedMesh.getColorAt(i, oldColor);
+          dnInstancedMesh.getColorAt(i,oldColor);
           newMesh.setColorAt(i, oldColor);
         }
       }
@@ -791,14 +802,13 @@ export function createGravitasSimulation(parentEl) {
     function recreateLineSegments(newCount) {
       if (lineSegments) scene.remove(lineSegments);
       const lineGeo = new THREE.BufferGeometry();
-      linePositions = new Float32Array(newCount * 2 * 3);
+      linePositions = new Float32Array(newCount*2*3);
+
       const filamentMat = new THREE.LineBasicMaterial({
-        color: "#808080",
-        opacity: 0.5,
-        transparent: true
+        color:"#808080", opacity:0.5, transparent:true
       });
       lineSegments = new THREE.LineSegments(lineGeo, filamentMat);
-      lineGeo.setAttribute("position", new THREE.BufferAttribute(linePositions, 3));
+      lineGeo.setAttribute("position", new THREE.BufferAttribute(linePositions,3));
       scene.add(lineSegments);
     }
 
@@ -806,9 +816,15 @@ export function createGravitasSimulation(parentEl) {
       const tmpMatrix = new THREE.Matrix4();
       tmpMatrix.makeTranslation(dn.position.x, dn.position.y, dn.position.z);
       dnInstancedMesh.setMatrixAt(i, tmpMatrix);
-      dnInstancedMesh.setColorAt(i, new THREE.Color("#BFBFBF"));
 
-      const arrOffset = i * 6;
+      // If isGif => lighter color
+      if (dn.redditData.isGif) {
+        dnInstancedMesh.setColorAt(i, new THREE.Color("#E0E0E0"));
+      } else {
+        dnInstancedMesh.setColorAt(i, new THREE.Color("#BFBFBF"));
+      }
+
+      const arrOffset = i*6;
       linePositions[arrOffset+0] = dn.position.x;
       linePositions[arrOffset+1] = dn.position.y;
       linePositions[arrOffset+2] = dn.position.z;
@@ -826,83 +842,31 @@ export function createGravitasSimulation(parentEl) {
           aliveCount++;
         }
       });
-      if (aliveCount > 0) {
-        sceneCenter.copy(total).multiplyScalar(1 / aliveCount);
+      if (aliveCount>0) {
+        sceneCenter.copy(total).multiplyScalar(1/aliveCount);
       }
     }
 
-    // The main animation loop
+    // ---------- The main animation loop ----------
     function animate() {
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
 
       if (!isPaused) {
         applyForces();
-        timeSinceAbsorption += dt;
-        if (timeSinceAbsorption >= ABSORPTION_INTERVAL) {
-          timeSinceAbsorption = 0;
+        timeSinceAbsorption+=dt;
+        if (timeSinceAbsorption>=ABSORPTION_INTERVAL) {
+          timeSinceAbsorption=0;
           timeBasedAbsorption();
         }
       }
-      // We always update camera & render, so user can orbit even if paused
       updateCamera();
       renderer.render(scene, camera);
     }
 
-    // Absorption (pulled to PMN)
-    function timeBasedAbsorption() {
-      pmnData.forEach(pmn => {
-        let closestIdx = -1;
-        let minDist = Infinity;
-        for (let i = 0; i < dnData.length; i++) {
-          const dn = dnData[i];
-          if (!dn.alive) continue;
-          const dist = pmn.mesh.position.distanceTo(dn.position);
-          if (dist < minDist) {
-            minDist = dist;
-            closestIdx = i;
-          }
-        }
-        if (closestIdx >= 0) {
-          const absorbedDn = dnData[closestIdx];
-          absorbedDn.alive = false;
-          const zeroMatrix = new THREE.Matrix4();
-          dnInstancedMesh.setMatrixAt(closestIdx, zeroMatrix);
-          dnInstancedMesh.instanceMatrix.needsUpdate = true;
-
-          const imageUrl = absorbedDn.redditData.thumbnailUrl || "";
-          const postUrl = absorbedDn.redditData.permalink
-            ? "https://www.reddit.com" + absorbedDn.redditData.permalink
-            : "#";
-          const postTitle = absorbedDn.redditData.title || "(unnamed)";
-          const upvoteCount = absorbedDn.redditData.upvoteCount || 0;
-          showAbsorbedImage(imageUrl, postUrl, postTitle, upvoteCount);
-
-          const idxLine = closestIdx * 6;
-          linePositions[idxLine+0] = -9999;
-          linePositions[idxLine+1] = -9999;
-          linePositions[idxLine+2] = -9999;
-          linePositions[idxLine+3] = -9999;
-          linePositions[idxLine+4] = -9999;
-          linePositions[idxLine+5] = -9999;
-          lineSegments.geometry.attributes.position.needsUpdate = true;
-
-          recalculateDnMasses(dnData.filter(d => d.alive));
-
-          // Push the new post to absorbedHistory, keep last 10, update UI
-          absorbedHistory.unshift({ title: postTitle, postUrl });
-          if (absorbedHistory.length > 10) {
-            absorbedHistory.pop();
-          }
-          updatePostListUI();
-        }
-      });
-    }
-
-    // Apply the gravity-like forces
     function applyForces() {
       const tmpMat = new THREE.Matrix4();
-      for (let i = 0; i < dnData.length; i++) {
+      for (let i=0; i<dnData.length; i++) {
         const dn = dnData[i];
         if (!dn.alive) continue;
 
@@ -912,65 +876,63 @@ export function createGravitasSimulation(parentEl) {
         let maxPull = 0;
 
         pmnData.forEach(pmn => {
-          const rVec = new THREE.Vector3().subVectors(pmn.mesh.position, dn.position);
-          const L = rVec.length() + softening;
-          const forceMag = (1 * dn.mass * pmn.mass) / (L * L);
-          if (forceMag > maxPull) {
+          const rVec = new THREE.Vector3().subVectors(pmn.mesh.position,dn.position);
+          const L = rVec.length()+5;
+          const forceMag = (1*dn.mass*pmn.mass)/(L*L);
+          if (forceMag>maxPull) {
             maxPull = forceMag;
             strongestPMN = pmn;
           }
           rVec.normalize();
           totalForce.add(rVec.multiplyScalar(forceMag));
 
-          if (L < 50) {
+          if (L<50) {
             const boostMag = (1*10)/(L*L);
             velocityBoost.add(rVec.clone().multiplyScalar(boostMag*0.05));
           }
         });
 
-        if (totalForce.length() > maxForce) {
-          totalForce.normalize().multiplyScalar(maxForce);
+        if (totalForce.length()>15) {
+          totalForce.normalize().multiplyScalar(15);
         }
-
         dn.velocity.add(totalForce).add(velocityBoost);
         dn.position.add(dn.velocity);
         dn.velocity.multiplyScalar(0.998);
 
-        if (dn.velocity.length() > maxVelocity) {
-          dn.velocity.normalize().multiplyScalar(maxVelocity);
+        if (dn.velocity.length()>20) {
+          dn.velocity.normalize().multiplyScalar(20);
         }
 
-        // Boundaries
-        if (dn.position.x > boundaryX) {
-          dn.position.x = boundaryX; dn.velocity.x *= -1;
-        } else if (dn.position.x < 0) {
-          dn.position.x = 0; dn.velocity.x *= -1;
+        // boundaries
+        if (dn.position.x>boundaryX) {
+          dn.position.x=boundaryX; dn.velocity.x*=-1;
+        } else if (dn.position.x<0) {
+          dn.position.x=0; dn.velocity.x*=-1;
         }
-        if (dn.position.y > boundaryY) {
-          dn.position.y = boundaryY; dn.velocity.y *= -1;
-        } else if (dn.position.y < 0) {
-          dn.position.y = 0; dn.velocity.y *= -1;
+        if (dn.position.y>boundaryY) {
+          dn.position.y=boundaryY; dn.velocity.y*=-1;
+        } else if (dn.position.y<0) {
+          dn.position.y=0; dn.velocity.y*=-1;
         }
-        if (dn.position.z > boundaryZ) {
-          dn.position.z = boundaryZ; dn.velocity.z *= -1;
-        } else if (dn.position.z < 0) {
-          dn.position.z = 0; dn.velocity.z *= -1;
+        if (dn.position.z>boundaryZ) {
+          dn.position.z=boundaryZ; dn.velocity.z*=-1;
+        } else if (dn.position.z<0) {
+          dn.position.z=0; dn.velocity.z*=-1;
         }
 
-        tmpMat.makeTranslation(dn.position.x, dn.position.y, dn.position.z);
-        dnInstancedMesh.setMatrixAt(i, tmpMat);
+        tmpMat.makeTranslation(dn.position.x,dn.position.y,dn.position.z);
+        dnInstancedMesh.setMatrixAt(i,tmpMat);
 
         if (strongestPMN) {
-          const arrOffset = i * 6;
-          linePositions[arrOffset + 0] = dn.position.x;
-          linePositions[arrOffset + 1] = dn.position.y;
-          linePositions[arrOffset + 2] = dn.position.z;
-          linePositions[arrOffset + 3] = strongestPMN.mesh.position.x;
-          linePositions[arrOffset + 4] = strongestPMN.mesh.position.y;
-          linePositions[arrOffset + 5] = strongestPMN.mesh.position.z;
+          const arrOffset = i*6;
+          linePositions[arrOffset+0] = dn.position.x;
+          linePositions[arrOffset+1] = dn.position.y;
+          linePositions[arrOffset+2] = dn.position.z;
+          linePositions[arrOffset+3] = strongestPMN.mesh.position.x;
+          linePositions[arrOffset+4] = strongestPMN.mesh.position.y;
+          linePositions[arrOffset+5] = strongestPMN.mesh.position.z;
         }
       }
-
       if (dnInstancedMesh) {
         dnInstancedMesh.instanceMatrix.needsUpdate = true;
         dnInstancedMesh.instanceColor.needsUpdate = true;
@@ -980,16 +942,15 @@ export function createGravitasSimulation(parentEl) {
       }
     }
 
-    // Move the camera around the center
     function updateCamera() {
       const t = clock.getElapsedTime();
-      const xOrbit = orbitRadius * Math.sin(orbitPolar) * Math.cos(orbitAzimuth);
-      const yOrbit = orbitRadius * Math.cos(orbitPolar);
-      const zOrbit = orbitRadius * Math.sin(orbitPolar) * Math.sin(orbitAzimuth);
+      const xOrbit = orbitRadius*Math.sin(orbitPolar)*Math.cos(orbitAzimuth);
+      const yOrbit = orbitRadius*Math.cos(orbitPolar);
+      const zOrbit = orbitRadius*Math.sin(orbitPolar)*Math.sin(orbitAzimuth);
 
-      const swayX = amplitude.x * Math.sin(t * 0.2);
-      const swayY = amplitude.y * Math.cos(t * 0.17);
-      const swayZ = amplitude.z * Math.sin(t * 0.23);
+      const swayX = amplitude.x*Math.sin(t*0.2);
+      const swayY = amplitude.y*Math.cos(t*0.17);
+      const swayZ = amplitude.z*Math.sin(t*0.23);
 
       camera.position.set(
         sceneCenter.x + xOrbit + swayX,
@@ -999,34 +960,85 @@ export function createGravitasSimulation(parentEl) {
       camera.lookAt(sceneCenter);
     }
 
-    // Listen for "Threads" button => init
-    if (discoverBtn) {
-      discoverBtn.addEventListener("click", () => {
-        init().catch(err => {
-          console.error("Error fetching reddit threads:", err.message);
-          if (centerEl) {
-            centerEl.textContent = "Unable to fetch Reddit data. Sorry.";
+    function timeBasedAbsorption() {
+      pmnData.forEach(pmn => {
+        let closestIdx=-1;
+        let minDist=Infinity;
+        for (let i=0; i<dnData.length; i++){
+          const dn=dnData[i];
+          if(!dn.alive) continue;
+          const dist = pmn.mesh.position.distanceTo(dn.position);
+          if(dist<minDist){
+            minDist=dist;
+            closestIdx=i;
           }
-        });
-        if (centerEl) {
-          centerEl.textContent = "";
         }
-        discoverBtn.disabled = true;
+        if(closestIdx>=0){
+          const absorbedDn=dnData[closestIdx];
+          absorbedDn.alive=false;
+
+          // Hide DN
+          const zeroMatrix=new THREE.Matrix4();
+          dnInstancedMesh.setMatrixAt(closestIdx,zeroMatrix);
+          dnInstancedMesh.instanceMatrix.needsUpdate=true;
+
+          const imageUrl=absorbedDn.redditData.thumbnailUrl || "";
+          const postUrl=absorbedDn.redditData.permalink
+            ? "https://www.reddit.com"+absorbedDn.redditData.permalink
+            : "#";
+          const postTitle=absorbedDn.redditData.title || "(unnamed)";
+          const upvoteCount=absorbedDn.redditData.upvoteCount||0;
+
+          // If it's a gif, skip auto-open
+          if(!absorbedDn.redditData.isGif){
+            showAbsorbedImage(imageUrl, postUrl, postTitle, upvoteCount);
+          }
+
+          // remove line
+          const idxLine=closestIdx*6;
+          linePositions[idxLine+0]=-9999;
+          linePositions[idxLine+1]=-9999;
+          linePositions[idxLine+2]=-9999;
+          linePositions[idxLine+3]=-9999;
+          linePositions[idxLine+4]=-9999;
+          linePositions[idxLine+5]=-9999;
+          lineSegments.geometry.attributes.position.needsUpdate=true;
+
+          recalculateDnMasses(dnData.filter(d=>d.alive));
+
+          // keep last 10
+          absorbedHistory.unshift({ title: postTitle, postUrl });
+          if(absorbedHistory.length>10){
+            absorbedHistory.pop();
+          }
+          updatePostListUI();
+        }
       });
     }
 
-    // NEW: Listen for play/pause toggle
-    if (togglePlayBtn) {
-      togglePlayBtn.addEventListener("click", () => {
-        isPaused = !isPaused;
-        togglePlayBtn.textContent = isPaused ? "Play" : "Pause";
+    // Listen for "Threads" button => init
+    const discoverBtnEl = document.getElementById("startButton");
+    if(discoverBtnEl){
+      discoverBtnEl.addEventListener("click",()=>{
+        init(); 
+        if(centerEl) centerEl.textContent = "";
+        discoverBtnEl.disabled = true;
+      });
+    }
+
+    // Listen for play/pause
+    const toggleEl = document.getElementById("togglePlayButton");
+    if(toggleEl){
+      toggleEl.addEventListener("click",()=>{
+        isPaused=!isPaused;
+        toggleEl.textContent=isPaused?"Play":"Pause";
       });
     }
 
   })(); // end IIFE
 }
 
-function launchGravitas() {
+function launchGravitas(){
   createGravitasSimulation(document.body);
 }
 window.createGravitasSimulation = createGravitasSimulation;
