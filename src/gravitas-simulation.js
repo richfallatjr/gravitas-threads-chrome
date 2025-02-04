@@ -149,7 +149,7 @@ export function createGravitasSimulation(parentEl) {
   absorbedImageContainer.style.msUserSelect = "none";
   absorbedImageContainer.style.MozUserSelect = "none";
 
-
+  // We'll keep the existing <img>...
   const absorbedImageLink = document.createElement("a");
   absorbedImageLink.id = "absorbedImageLink";
   absorbedImageLink.href = "#";
@@ -174,12 +174,24 @@ export function createGravitasSimulation(parentEl) {
   absorbedImage.style.userSelect = "none";
   absorbedImage.setAttribute("draggable", "false");
 
-  
   absorbedImage.addEventListener("dragstart", (e) => e.preventDefault());
   absorbedImageLink.addEventListener("dragstart", (e) => e.preventDefault());
-
   absorbedImageLink.appendChild(absorbedImage);
+
+  // ...AND we add a <video> for .mp4
+  const absorbedVideo = document.createElement("video");
+  absorbedVideo.id = "absorbedVideo";
+  absorbedVideo.style.display = "none"; // hidden by default
+  absorbedVideo.style.width = "auto";
+  absorbedVideo.style.height = "auto";
+  absorbedVideo.style.maxWidth = "100%";
+  absorbedVideo.style.maxHeight = "100%";
+  absorbedVideo.style.objectFit = "contain";
+  absorbedVideo.setAttribute("controls", "true");
+
+  // Put them all in the same container
   absorbedImageContainer.appendChild(absorbedImageLink);
+  absorbedImageContainer.appendChild(absorbedVideo);
   container.appendChild(absorbedImageContainer);
 
   // Absorbed Details Container
@@ -309,25 +321,35 @@ export function createGravitasSimulation(parentEl) {
     }
 
     /************************************************************
-     * HELPER: Absorbed Image
+     * HELPER: Absorbed Media (image or mp4)
      ************************************************************/
-    function showAbsorbedImage(imageUrl, redditUrl, postTitle, upvoteCount) {
+    function showAbsorbedMedia(imageUrl, videoUrl, redditUrl, postTitle, upvoteCount, isVideo) {
       const container = document.getElementById("absorbedImageContainer");
       const link = document.getElementById("absorbedImageLink");
       const img = document.getElementById("absorbedImage");
+      const vid = document.getElementById("absorbedVideo");
 
+      // Make sure link goes to reddit post
       if (link) link.href = redditUrl || "#";
-      if (img) {
+
+      if (isVideo && videoUrl) {
+        // Show the <video>, hide the <img>
+        img.style.display = "none";
+        vid.style.display = "block";
+        vid.src = videoUrl;
+      } else {
+        // Show the <img>, hide the <video>
+        vid.style.display = "none";
+        vid.src = "";
+        img.style.display = "block";
         img.src = imageUrl || "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
-        img.onload = () => {
-          if (container) container.style.display = "block";
-          showDetailsPane(postTitle, upvoteCount);
-        };
-        img.onerror = () => {
-          if (container) container.style.display = "block";
-          showDetailsPane(postTitle, upvoteCount);
-        };
       }
+
+      // Always reveal container + details once something loads
+      if (container) container.style.display = "block";
+
+      // Just call existing details logic
+      showDetailsPane(postTitle, upvoteCount);
     }
 
     function showDetailsPane(title, upvoteCount) {
@@ -354,15 +376,12 @@ export function createGravitasSimulation(parentEl) {
      * Clicking a sphere
      ************************************************************/
     function showClickedDnBriefly(dn, instanceId) {
-      const title = dn.redditData?.title || "(untitled)";
-      const postUrl = dn.redditData?.permalink
-        ? "https://www.reddit.com" + dn.redditData.permalink
-        : "#";
-      const imageUrl = dn.redditData?.thumbnailUrl || "";
-      const upvoteCount = dn.redditData?.upvoteCount || 0;
+      const r = dn.redditData;
+      const postUrl = r.permalink ? "https://www.reddit.com" + r.permalink : "#";
+      const upvoteCount = r.upvoteCount || 0;
 
-      // Always show the image/gif if user clicks
-      showAbsorbedImage(imageUrl, postUrl, title, upvoteCount);
+      // Display mp4 or image, depending on isVideo
+      showAbsorbedMedia(r.thumbnailUrl, dn.videoUrl, postUrl, r.title, upvoteCount, dn.isVideo);
 
       // Recolor the instance
       const newColor = new THREE.Color(clickColors[Math.floor(Math.random() * clickColors.length)]);
@@ -468,48 +487,34 @@ export function createGravitasSimulation(parentEl) {
       return rawPosts.map((p) => mapRedditPostToSimple(p.data));
     }
 
-    function isPostActuallyAGif(postData) {
-      // 1) Check if domain is redgifs
-      if (postData.domain === "redgifs.com") {
-        return true;
-      }
-      // 2) Or if secure_media has .type === "redgifs.com"
-      if (
-        postData.secure_media &&
-        postData.secure_media.type === "redgifs.com"
-      ) {
-        return true;
-      }
-      // 3) Or if media_embed.content has "redgifs.com/ifr"
-      if (
-        postData.media_embed &&
-        typeof postData.media_embed.content === "string" &&
-        postData.media_embed.content.includes("redgifs.com/ifr")
-      ) {
-        return true;
-      }
-    
-      // 4) Otherwise, check if thumbnailUrl ends with .gif
-      // (for real .gif links)
-      // e.g. your existing logic
-      if (postData.thumbnailUrl && postData.thumbnailUrl.toLowerCase().endsWith(".gif")) {
-        return true;
-      }
-    
-      return false;
-    }
-    
-
     function mapRedditPostToSimple(postData) {
-      // check if it's a reddit video
-      const isActuallyAGif = isPostActuallyAGif(postData);
+      // 1) Check reddit_video_preview first
+      if (
+        postData.preview &&
+        postData.preview.reddit_video_preview &&
+        postData.preview.reddit_video_preview.fallback_url
+      ) {
+        return {
+          title: postData.title || "Untitled",
+          upvoteCount: postData.ups || 0,
+          commentCount: postData.num_comments || 0,
+          permalink: postData.permalink || "",
+          createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
+
+          // Mark it as a video
+          isVideo: true,
+          videoUrl: postData.preview.reddit_video_preview.fallback_url,
+          thumbnailUrl: getHighResImageFromRedditPost(postData),
+        };
+      }
+
+      // 2) Otherwise, if it's a normal reddit_video
       const isVideoPost = postData.is_video &&
                           postData.media &&
                           postData.media.reddit_video &&
                           postData.media.reddit_video.fallback_url;
 
       if (isVideoPost) {
-        // treat it as mp4
         return {
           title: postData.title || "Untitled",
           upvoteCount: postData.ups || 0,
@@ -520,22 +525,21 @@ export function createGravitasSimulation(parentEl) {
           isVideo: true,
           videoUrl: postData.media.reddit_video.fallback_url,
           thumbnailUrl: getHighResImageFromRedditPost(postData),
-          isGif: isActuallyAGif
-        };
-      } else {
-        // image/gif
-        return {
-          title: postData.title || "Untitled",
-          upvoteCount: postData.ups || 0,
-          commentCount: postData.num_comments || 0,
-          permalink: postData.permalink || "",
-          createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
-
-          isVideo: false,
-          videoUrl: "",
-          thumbnailUrl: getHighResImageFromRedditPost(postData)
         };
       }
+
+      // 3) Otherwise treat as image/gif
+      return {
+        title: postData.title || "Untitled",
+        upvoteCount: postData.ups || 0,
+        commentCount: postData.num_comments || 0,
+        permalink: postData.permalink || "",
+        createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
+
+        isVideo: false,
+        videoUrl: "",
+        thumbnailUrl: getHighResImageFromRedditPost(postData),
+      };
     }
 
     function getHighResImageFromRedditPost(d) {
@@ -611,6 +615,7 @@ export function createGravitasSimulation(parentEl) {
         // detect if .gif => skip auto absorption
         const isGif = post.thumbnailUrl.toLowerCase().endsWith(".gif");
 
+        // Return the data.  Notice we also store `isVideo` from `post.isVideo`.
         return {
           redditData: {
             title: post.title,
@@ -619,6 +624,10 @@ export function createGravitasSimulation(parentEl) {
             thumbnailUrl: post.thumbnailUrl,
             isGif
           },
+          // We'll keep these top-level so we can show them in showClickedDnBriefly
+          isVideo: post.isVideo,         // <--- store that here
+          videoUrl: post.videoUrl || "", // <--- store mp4 link
+
           attributes: {
             upvoteFactor,
             commentFactor,
@@ -665,6 +674,8 @@ export function createGravitasSimulation(parentEl) {
         const src = dnData[dnData.length%origCount];
         const clone = {
           redditData: { ...src.redditData },
+          isVideo: src.isVideo,
+          videoUrl: src.videoUrl,
           attributes: { ...src.attributes },
           position: new THREE.Vector3(
             Math.random()*700,
@@ -846,13 +857,14 @@ export function createGravitasSimulation(parentEl) {
       scene.add(lineSegments);
     }
 
+    // === MINOR CHANGE #2: isVideo => also lighten. ===
     function updateOneInstance(i, dn) {
       const tmpMatrix = new THREE.Matrix4();
       tmpMatrix.makeTranslation(dn.position.x, dn.position.y, dn.position.z);
       dnInstancedMesh.setMatrixAt(i, tmpMatrix);
 
-      // If isGif => lighter color
-      if (dn.redditData.isGif) {
+      // If it's .gif OR .isVideo => lighter color
+      if (dn.redditData.isGif || dn.isVideo) {
         dnInstancedMesh.setColorAt(i, new THREE.Color("#E0E0E0"));
       } else {
         dnInstancedMesh.setColorAt(i, new THREE.Color("#BFBFBF"));
@@ -1016,16 +1028,24 @@ export function createGravitasSimulation(parentEl) {
           dnInstancedMesh.setMatrixAt(closestIdx,zeroMatrix);
           dnInstancedMesh.instanceMatrix.needsUpdate=true;
 
-          const imageUrl=absorbedDn.redditData.thumbnailUrl || "";
-          const postUrl=absorbedDn.redditData.permalink
+          const imageUrl = absorbedDn.redditData.thumbnailUrl || "";
+          const postUrl = absorbedDn.redditData.permalink
             ? "https://www.reddit.com"+absorbedDn.redditData.permalink
             : "#";
-          const postTitle=absorbedDn.redditData.title || "(unnamed)";
+          const postTitle = absorbedDn.redditData.title || "(unnamed)";
           const upvoteCount=absorbedDn.redditData.upvoteCount||0;
 
           // If it's a gif, skip auto-open
           if(!absorbedDn.redditData.isGif){
-            showAbsorbedImage(imageUrl, postUrl, postTitle, upvoteCount);
+            // Show if it's not a gif
+            showAbsorbedMedia(
+              imageUrl,
+              absorbedDn.videoUrl,
+              postUrl,
+              postTitle,
+              upvoteCount,
+              absorbedDn.isVideo
+            );
           }
 
           // remove line
