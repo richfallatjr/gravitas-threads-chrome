@@ -202,7 +202,12 @@ function createGravitasSimulation(parentEl) {
   absorbedVideo.style.maxWidth = "100%";
   absorbedVideo.style.maxHeight = "100%";
   absorbedVideo.style.objectFit = "contain";
+  // *** We add these to ensure autoplay/loop (and usually must be muted):
   absorbedVideo.setAttribute("controls", "true");
+  absorbedVideo.setAttribute("loop", "true");
+  absorbedVideo.setAttribute("autoplay", "true");
+  absorbedVideo.muted = true;  // needed for most browsers to autoplay
+  // ***
 
   // Put them all in the same container
   absorbedImageContainer.appendChild(absorbedImageLink);
@@ -267,7 +272,7 @@ function createGravitasSimulation(parentEl) {
     let allMeshes = [];
     let clock;
     let timeSinceAbsorption = 0;
-    const ABSORPTION_INTERVAL = 2.0;
+    const ABSORPTION_INTERVAL = 3.0;
 
     const boundaryX = 700, boundaryY = 600, boundaryZ = 400;
     const DRAG_THRESHOLD = 5;
@@ -352,6 +357,9 @@ function createGravitasSimulation(parentEl) {
         img.style.display = "none";
         vid.style.display = "block";
         vid.src = videoUrl;
+        // Force it to load again in case user paused it last time
+        vid.load();
+        // Will autoplay because of the attributes we set
       } else {
         // Show the <img>, hide the <video>
         vid.style.display = "none";
@@ -872,7 +880,6 @@ function createGravitasSimulation(parentEl) {
       scene.add(lineSegments);
     }
 
-    // === MINOR CHANGE #2: isVideo => also lighten. ===
     function updateOneInstance(i, dn) {
       const tmpMatrix = new three__WEBPACK_IMPORTED_MODULE_0__.Matrix4();
       tmpMatrix.makeTranslation(dn.position.x, dn.position.y, dn.position.z);
