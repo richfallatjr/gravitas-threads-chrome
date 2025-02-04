@@ -496,7 +496,7 @@ export function createGravitasSimulation(parentEl) {
     }
 
     function mapRedditPostToSimple(postData) {
-      // 1) Check reddit_video_preview first
+      // 1) If there's a reddit_video_preview...
       if (
         postData.preview &&
         postData.preview.reddit_video_preview &&
@@ -508,20 +508,20 @@ export function createGravitasSimulation(parentEl) {
           commentCount: postData.num_comments || 0,
           permalink: postData.permalink || "",
           createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
-
-          // Mark it as a video
+    
           isVideo: true,
           videoUrl: postData.preview.reddit_video_preview.fallback_url,
           thumbnailUrl: getHighResImageFromRedditPost(postData),
         };
       }
-
-      // 2) Otherwise, if it's a normal reddit_video
-      const isVideoPost = postData.is_video &&
-                          postData.media &&
-                          postData.media.reddit_video &&
-                          postData.media.reddit_video.fallback_url;
-
+    
+      // 2) Then your normal check for reddit_video
+      const isVideoPost = 
+        postData.is_video &&
+        postData.media &&
+        postData.media.reddit_video &&
+        postData.media.reddit_video.fallback_url;
+    
       if (isVideoPost) {
         return {
           title: postData.title || "Untitled",
@@ -529,26 +529,53 @@ export function createGravitasSimulation(parentEl) {
           commentCount: postData.num_comments || 0,
           permalink: postData.permalink || "",
           createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
-
+    
           isVideo: true,
           videoUrl: postData.media.reddit_video.fallback_url,
           thumbnailUrl: getHighResImageFromRedditPost(postData),
         };
       }
-
-      // 3) Otherwise treat as image/gif
+    
+      // 3) If domain is "i.imgur.com" or "imgur.com" and the url ends with .gifv,
+      //    we can forcibly treat it as a .mp4
+      //    Example: "https://i.imgur.com/6FdKAB9.gifv" -> "https://i.imgur.com/6FdKAB9.mp4"
+      const finalUrl = postData.url_overridden_by_dest || postData.url || "";
+      const domainLower = (postData.domain || "").toLowerCase();
+      if (
+        (domainLower.includes("imgur.com")) &&
+        finalUrl.toLowerCase().endsWith(".gifv")
+      ) {
+        // Convert .gifv to .mp4
+        const mp4Link = finalUrl.replace(/\.gifv$/i, ".mp4");
+    
+        return {
+          title: postData.title || "Untitled",
+          upvoteCount: postData.ups || 0,
+          commentCount: postData.num_comments || 0,
+          permalink: postData.permalink || "",
+          createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
+    
+          isVideo: true,
+          videoUrl: mp4Link,
+          // You could still supply a fallback image from getHighResImageFromRedditPost
+          thumbnailUrl: getHighResImageFromRedditPost(postData),
+        };
+      }
+    
+      // 4) Otherwise, treat as image/gif
       return {
         title: postData.title || "Untitled",
         upvoteCount: postData.ups || 0,
         commentCount: postData.num_comments || 0,
         permalink: postData.permalink || "",
         createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
-
+    
         isVideo: false,
         videoUrl: "",
         thumbnailUrl: getHighResImageFromRedditPost(postData),
       };
     }
+    
 
     function getHighResImageFromRedditPost(d) {
       // if it ends with .gif

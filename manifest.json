@@ -4,7 +4,7 @@
   "version": "1.0",
   "description": "Transforms Reddit threads into a dynamic 3D experience.",
 
-  "permissions": ["activeTab"],
+  "permissions": [],
 
   "host_permissions": [
     "*://www.reddit.com/*"
