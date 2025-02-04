@@ -61,6 +61,10 @@ function createGravitasSimulation(parentEl) {
   logo.style.display = "inline-flex";
   logo.style.alignItems = "center";
   logo.style.justifyContent = "center";
+  logo.style.userSelect = "none";
+  logo.style.webkitUserSelect = "none";
+  logo.style.msUserSelect = "none";
+  logo.style.MozUserSelect = "none";
 
   const discoverBtn = document.createElement("button");
   discoverBtn.id = "startButton";
@@ -74,6 +78,10 @@ function createGravitasSimulation(parentEl) {
   discoverBtn.style.display = "inline-flex";
   discoverBtn.style.alignItems = "center";
   discoverBtn.style.justifyContent = "center";
+  discoverBtn.style.userSelect = "none";
+  discoverBtn.style.webkitUserSelect = "none";
+  discoverBtn.style.msUserSelect = "none";
+  discoverBtn.style.MozUserSelect = "none";
 
   // NEW: Play/Pause button
   const togglePlayBtn = document.createElement("button");
@@ -88,6 +96,10 @@ function createGravitasSimulation(parentEl) {
   togglePlayBtn.style.display = "inline-flex";
   togglePlayBtn.style.alignItems = "center";
   togglePlayBtn.style.justifyContent = "center";
+  togglePlayBtn.style.userSelect = "none";
+  togglePlayBtn.style.webkitUserSelect = "none";
+  togglePlayBtn.style.msUserSelect = "none";
+  togglePlayBtn.style.MozUserSelect = "none";
   // We will attach its event listener below in the IIFE
 
   topCenterContainer.appendChild(logo);
@@ -113,6 +125,10 @@ function createGravitasSimulation(parentEl) {
   postListPanel.style.color = "#000";
   postListPanel.style.zIndex = "9999";
   container.appendChild(postListPanel);
+  postListPanel.style.userSelect = "none";
+  postListPanel.style.webkitUserSelect = "none";
+  postListPanel.style.msUserSelect = "none";
+  postListPanel.style.MozUserSelect = "none";
 
   // Absorbed Image Container (480px wide)
   const absorbedImageContainer = document.createElement("div");
@@ -127,6 +143,11 @@ function createGravitasSimulation(parentEl) {
   absorbedImageContainer.style.maxWidth = "480px";
   absorbedImageContainer.style.maxHeight = "480px";
   absorbedImageContainer.style.overflow = "hidden";
+  absorbedImageContainer.style.userSelect = "none";
+  absorbedImageContainer.style.webkitUserSelect = "none";
+  absorbedImageContainer.style.msUserSelect = "none";
+  absorbedImageContainer.style.MozUserSelect = "none";
+
 
   const absorbedImageLink = document.createElement("a");
   absorbedImageLink.id = "absorbedImageLink";
@@ -135,6 +156,8 @@ function createGravitasSimulation(parentEl) {
   absorbedImageLink.style.display = "block";
   absorbedImageLink.style.border = "2px solid rgba(255, 255, 255, 0)";
   absorbedImageLink.style.borderRadius = "4px";
+  absorbedImageLink.style.userSelect = "none";
+  absorbedImageLink.setAttribute("draggable", "false");
 
   const absorbedImage = document.createElement("img");
   absorbedImage.id = "absorbedImage";
@@ -147,10 +170,12 @@ function createGravitasSimulation(parentEl) {
   absorbedImage.style.maxWidth = "100%";
   absorbedImage.style.maxHeight = "100%";
   absorbedImage.style.objectFit = "contain";
+  absorbedImage.style.userSelect = "none";
+  absorbedImage.setAttribute("draggable", "false");
 
-  absorbedImageLink.appendChild(absorbedImage);
-  absorbedImageContainer.appendChild(absorbedImageLink);
-  document.body.appendChild(absorbedImageContainer);
+  
+  absorbedImage.addEventListener("dragstart", (e) => e.preventDefault());
+  absorbedImageLink.addEventListener("dragstart", (e) => e.preventDefault());
 
   absorbedImageLink.appendChild(absorbedImage);
   absorbedImageContainer.appendChild(absorbedImageLink);
@@ -172,6 +197,10 @@ function createGravitasSimulation(parentEl) {
   absorbedDetailsContainer.style.display = "none";
   absorbedDetailsContainer.style.textAlign = "center";
   absorbedDetailsContainer.style.fontFamily = "'Montserrat', sans-serif";
+  absorbedDetailsContainer.style.userSelect = "none";
+  absorbedDetailsContainer.style.webkitUserSelect = "none";
+  absorbedDetailsContainer.style.msUserSelect = "none";
+  absorbedDetailsContainer.style.MozUserSelect = "none";
 
   const detailsTitle = document.createElement("h3");
   detailsTitle.id = "detailsTitle";
@@ -201,7 +230,10 @@ function createGravitasSimulation(parentEl) {
   (function() {
 
     // --------------- NEW: We'll store multiple feed types. ---------------
-    const FEED_TYPES = ["hot", "new", "top"];
+    const FEED_TYPES = ["hot", "new", "top", "topYear"];
+
+    const sub = getCurrentRedditPathFromUrl() || "popular";
+      console.log("[fetchAllRedditThreads] Using multiple feed types for r/", sub);
 
     // We'll keep track of the last 10 absorbed posts
     const absorbedHistory = [];
@@ -209,7 +241,7 @@ function createGravitasSimulation(parentEl) {
       const panel = document.getElementById("postListPanel");
       panel.innerHTML = "";
       const heading = document.createElement("div");
-      heading.textContent = "Last 10 Absorbed Posts:";
+      heading.textContent = "r/" + sub + " Posts:";
       heading.style.fontWeight = "bold";
       heading.style.marginBottom = "8px";
       panel.appendChild(heading);
@@ -244,7 +276,7 @@ function createGravitasSimulation(parentEl) {
     let allMeshes = [];
     let clock;
     let timeSinceAbsorption = 0;
-    const ABSORPTION_INTERVAL = 1.0;
+    const ABSORPTION_INTERVAL = 2.0;
 
     const boundaryX = 700, boundaryY = 600, boundaryZ = 400;
     const G = 1;
@@ -409,67 +441,157 @@ function createGravitasSimulation(parentEl) {
 
     // Fetch multiple feeds from subreddit
     async function fetchAllRedditThreads() {
-      const sub = getCurrentSubredditFromUrl() || "popular";
-      console.log("[fetchAllRedditThreads] Using multiple feed types for r/", sub);
-
-      // 1) Fetch each feed type (hot, new, top)
+      const redditPath = getCurrentRedditPathFromUrl();
+    
+      // If it's a user path, just fetch “submitted” once
+      if (redditPath.startsWith("user/")) {
+        const posts = await fetchRedditDataViaApi(redditPath, "hot");
+        return posts; // or just "submitted" ignoring "hot" etc.
+      }
+    
+      // Otherwise, we do your multiple sub feed approach
       let allPosts = [];
       for (const type of FEED_TYPES) {
-        const postsForType = await fetchRedditDataViaApi(sub, type);
+        const postsForType = await fetchRedditDataViaApi(redditPath, type);
         allPosts = allPosts.concat(postsForType);
       }
-
-      // 2) Remove duplicates by post permalink or id
+    
+      // deduplicate
       const uniqueMap = new Map();
       for (let p of allPosts) {
-        // Use permalink as the unique key
         uniqueMap.set(p.permalink, p);
       }
       const uniquePosts = Array.from(uniqueMap.values());
       return uniquePosts;
     }
+    
 
-    function getCurrentSubredditFromUrl() {
+    function getCurrentRedditPathFromUrl() {
       const currentUrl = window.location.href;
-      const match = currentUrl.match(/reddit\.com\/r\/([^/]+)/);
-      if (match && match[1]) return match[1];
+      
+      // 1) Check if it's user-based: e.g. https://www.reddit.com/user/spez
+      let match = currentUrl.match(/reddit\.com\/user\/([^/]+)/);
+      if (match && match[1]) {
+        // Return 'user/spez'
+        return "user/" + match[1];
+      }
+    
+      // 2) Otherwise, check if it's subreddit-based: e.g. https://www.reddit.com/r/pics
+      match = currentUrl.match(/reddit\.com\/r\/([^/]+)/);
+      if (match && match[1]) {
+        // Return just 'pics' or 'funny'
+        return match[1];
+      }
+    
+      // 3) Default fallback
       return "popular";
     }
 
-    async function fetchRedditDataViaApi(subreddit, feedType = "hot") {
-      const url = `https://www.reddit.com/r/${subreddit}/${feedType}.json?limit=100`;
+    async function fetchRedditDataViaApi(redditPath, feedType = "hot") {
+      let url;
+    
+      // 1) Detect if 'redditPath' is actually a user (e.g. 'user/spez')
+      if (redditPath.startsWith("user/")) {
+        // Extract the username => 'spez'
+        const username = redditPath.split("/")[1];
+        // We’ll fetch that user’s submissions. (You could also do /comments.json if needed.)
+        url = `https://www.reddit.com/user/${username}/submitted.json?limit=100`;
+      } else {
+        // 2) Otherwise, treat it as a subreddit name (e.g. 'funny', 'popular', etc.)
+        if (feedType === "topYear") {
+          url = `https://www.reddit.com/r/${redditPath}/top.json?t=year&limit=100`;
+        } else {
+          url = `https://www.reddit.com/r/${redditPath}/${feedType}.json?limit=100`;
+        }
+      }
+    
       const resp = await fetch(url);
       if (!resp.ok) {
-        throw new Error(`Reddit API error: ${resp.statusText}`);
+        throw new Error(`Reddit API error: ${resp.status} - ${resp.statusText}`);
       }
+    
       const json = await resp.json();
       const rawPosts = json.data?.children || [];
-      return rawPosts.map(p => mapRedditPostToSimple(p.data));
+      return rawPosts.map((p) => mapRedditPostToSimple(p.data));
     }
+    
+    
 
     function mapRedditPostToSimple(postData) {
-      return {
-        title: postData.title || "Untitled",
-        upvoteCount: postData.ups || 0,
-        commentCount: postData.num_comments || 0,
-        permalink: postData.permalink || "",
-        thumbnailUrl: getHighResImageFromRedditPost(postData),
-        createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now()
-      };
+      // 1) Check if this is a Reddit video (MP4)
+      const isVideoPost = postData.is_video && 
+                          postData.media && 
+                          postData.media.reddit_video &&
+                          postData.media.reddit_video.fallback_url;
+    
+      if (isVideoPost) {
+        // It's really an MP4 "gif" => use <video> in your UI
+        return {
+          title: postData.title || "Untitled",
+          upvoteCount: postData.ups || 0,
+          commentCount: postData.num_comments || 0,
+          permalink: postData.permalink || "",
+          createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
+    
+          // Fields for video playback
+          isVideo: true,
+          videoUrl: postData.media.reddit_video.fallback_url,
+          // Optional: keep a thumbnail in case you want to show a preview
+          thumbnailUrl: getHighResImageFromRedditPost(postData),
+        };
+      } else {
+        // 2) Otherwise, treat it as an image/GIF post
+        return {
+          title: postData.title || "Untitled",
+          upvoteCount: postData.ups || 0,
+          commentCount: postData.num_comments || 0,
+          permalink: postData.permalink || "",
+          createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
+    
+          // Not a video
+          isVideo: false,
+          videoUrl: "",
+          // Use your existing helper to get the best image/GIF link
+          thumbnailUrl: getHighResImageFromRedditPost(postData),
+        };
+      }
     }
+    
 
     function getHighResImageFromRedditPost(d) {
+      // 1) If the post’s URL itself ends with .gif, use it
+      if (d.url && d.url.endsWith(".gif")) {
+        return d.url;
+      }
+    
+      // 2) Check for actual GIF variants in the preview
+      if (d.preview && d.preview.images && d.preview.images[0]) {
+        const previewObj = d.preview.images[0];
+        const variants = previewObj.variants;
+    
+        // If there's a .gif variant, grab that
+        if (variants && variants.gif && variants.gif.source && variants.gif.source.url) {
+          return variants.gif.source.url.replace(/&amp;/g, "&");
+        }
+      }
+    
+      // 3) Fallback to your existing "high-res" logic
       if (d.preview && d.preview.images && d.preview.images.length > 0) {
         const firstImage = d.preview.images[0];
         if (firstImage.source && firstImage.source.url) {
           return firstImage.source.url.replace(/&amp;/g, "&");
         }
       }
+    
+      // 4) Finally, fallback to thumbnail if it’s a valid URL
       if (d.thumbnail && d.thumbnail.startsWith("http")) {
         return d.thumbnail;
       }
+    
+      // Otherwise, no usable image found
       return "";
     }
+    
 
     // Convert posts to DN objects
     function convertRedditPostsToDNs(posts) {
