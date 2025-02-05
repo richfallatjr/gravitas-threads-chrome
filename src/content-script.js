@@ -92,7 +92,7 @@ function showGravitasPopup() {
   Object.assign(popup.style, {
     position: 'absolute',
     width: '1024px',
-    height: '600px',
+    height: '800px',
     top: '50%',
     left: '50%',
     transform: 'translate(-50%, -50%)',

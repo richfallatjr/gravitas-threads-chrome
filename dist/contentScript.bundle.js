@@ -35,7 +35,7 @@ function createGravitasSimulation(parentEl) {
   container.id = "simulation-container";
   container.style.position = "relative";
   container.style.width = "100%";
-  container.style.height = "600px";
+  container.style.height = "100%";
   container.style.margin = "0 auto";
   container.style.backgroundColor = "#F2F2F2";
 
@@ -118,6 +118,38 @@ function createGravitasSimulation(parentEl) {
   togglePlayBtn.style.MozUserSelect = "none";
   // We will attach its event listener below in the IIFE
 
+
+  // Create a small wrapper
+  const speedWrapper = document.createElement("div");
+  speedWrapper.style.display = "inline-flex";
+  speedWrapper.style.alignItems = "center";
+  speedWrapper.style.gap = "1px"; // or however much spacing you like
+
+  // Create the label
+  const speedLabel = document.createElement("label");
+  speedLabel.id = "speedLabel";
+  speedLabel.textContent = "";
+  speedLabel.style.color = "black";
+  speedLabel.style.fontSize = "12px";
+  speedLabel.style.userSelect = "none";
+
+  // Create the slider
+  const speedSlider = document.createElement("input");
+  speedSlider.id = "speedSlider";
+  speedSlider.type = "range";
+  speedSlider.min = "1";
+  speedSlider.max = "20";
+  speedSlider.value = "3";
+  speedSlider.style.cursor = "pointer";
+
+  // Append label & slider to the wrapper
+  speedWrapper.appendChild(speedLabel);
+  speedWrapper.appendChild(speedSlider);
+
+  // Now add that wrapper to topCenterContainer
+  topCenterContainer.appendChild(speedWrapper);
+
+
   topCenterContainer.appendChild(logo);
   topCenterContainer.appendChild(discoverBtn);
   topCenterContainer.appendChild(togglePlayBtn);
@@ -130,7 +162,7 @@ function createGravitasSimulation(parentEl) {
   postListPanel.style.right = "20px";
   postListPanel.style.bottom = "20px";
   postListPanel.style.width = "200px";
-  postListPanel.style.maxHeight = "500px";
+  postListPanel.style.maxHeight = "700px";
   postListPanel.style.overflowY = "auto";
   postListPanel.style.backgroundColor = "rgba(255, 255, 255, 0.8)";
   postListPanel.style.padding = "10px";
@@ -157,7 +189,7 @@ function createGravitasSimulation(parentEl) {
   absorbedImageContainer.style.display = "inline-block";
   absorbedImageContainer.style.minWidth = "480px";
   absorbedImageContainer.style.maxWidth = "480px";
-  absorbedImageContainer.style.maxHeight = "480px";
+  absorbedImageContainer.style.maxHeight = "700px";
   absorbedImageContainer.style.overflow = "hidden";
   absorbedImageContainer.style.userSelect = "none";
   absorbedImageContainer.style.webkitUserSelect = "none";
@@ -272,7 +304,7 @@ function createGravitasSimulation(parentEl) {
     let allMeshes = [];
     let clock;
     let timeSinceAbsorption = 0;
-    const ABSORPTION_INTERVAL = 3.0;
+    let ABSORPTION_INTERVAL = 3.0;
 
     const boundaryX = 700, boundaryY = 600, boundaryZ = 400;
     const DRAG_THRESHOLD = 5;
@@ -305,6 +337,19 @@ function createGravitasSimulation(parentEl) {
       metric: m.metric,
       position: null
     }));
+
+    speedSlider.addEventListener("input", () => {
+      // Read the slider value (string -> number)
+      const newValue = parseFloat(speedSlider.value);
+    
+      // We want "1" to mean 1 second, "10" to mean 10 seconds
+      // so we can assign directly:
+      ABSORPTION_INTERVAL = newValue;
+    
+      // Optional: Update the label text to show the user the current # of seconds
+      speedLabel.textContent = `${newValue}s`;
+    });
+    
 
     // Colors for click
     const clickColors = ["#FF6188", "#A9DC76", "#FFD866", "#78DCE8", "#AB9DF2"];
@@ -357,9 +402,12 @@ function createGravitasSimulation(parentEl) {
         img.style.display = "none";
         vid.style.display = "block";
         vid.src = videoUrl;
+        // Will autoplay because of the attributes we set
+        vid.onclick = () => {
+          window.open(redditUrl, "_blank");
+        };
         // Force it to load again in case user paused it last time
         vid.load();
-        // Will autoplay because of the attributes we set
       } else {
         // Show the <img>, hide the <video>
         vid.style.display = "none";
@@ -52765,7 +52813,7 @@ function showGravitasPopup() {
   Object.assign(popup.style, {
     position: 'absolute',
     width: '1024px',
-    height: '600px',
+    height: '800px',
     top: '50%',
     left: '50%',
     transform: 'translate(-50%, -50%)',
