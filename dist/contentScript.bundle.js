@@ -1104,68 +1104,82 @@ function createGravitasSimulation(parentEl) {
     }
 
     function timeBasedAbsorption() {
-      pmnData.forEach(pmn => {
-        let closestIdx=-1;
-        let minDist=Infinity;
-        for (let i=0; i<dnData.length; i++){
-          const dn=dnData[i];
-          if(!dn.alive) continue;
-          const dist = pmn.mesh.position.distanceTo(dn.position);
-          if(dist<minDist){
-            minDist=dist;
-            closestIdx=i;
-          }
+      // 1) Pick a random PMN
+      const randomIndex = Math.floor(Math.random() * pmnData.length);
+      const pmn = pmnData[randomIndex];
+    
+      // 2) Find the nearest DN to that one PMN
+      let closestIdx = -1;
+      let minDist = Infinity;
+      for (let i = 0; i < dnData.length; i++) {
+        const dn = dnData[i];
+        if (!dn.alive) continue;
+        const dist = pmn.mesh.position.distanceTo(dn.position);
+        if (dist < minDist) {
+          minDist = dist;
+          closestIdx = i;
         }
-        if(closestIdx>=0){
-          const absorbedDn=dnData[closestIdx];
-          absorbedDn.alive=false;
-
-          // Hide DN
-          const zeroMatrix=new three__WEBPACK_IMPORTED_MODULE_0__.Matrix4();
-          dnInstancedMesh.setMatrixAt(closestIdx,zeroMatrix);
-          dnInstancedMesh.instanceMatrix.needsUpdate=true;
-
-          const imageUrl = absorbedDn.redditData.thumbnailUrl || "";
-          const postUrl = absorbedDn.redditData.permalink
-            ? "https://www.reddit.com"+absorbedDn.redditData.permalink
-            : "#";
-          const postTitle = absorbedDn.redditData.title || "(unnamed)";
-          const upvoteCount=absorbedDn.redditData.upvoteCount||0;
-
-          // If it's a gif, skip auto-open
-          if(!absorbedDn.redditData.isGif){
-            // Show if it's not a gif
-            showAbsorbedMedia(
-              imageUrl,
-              absorbedDn.videoUrl,
-              postUrl,
-              postTitle,
-              upvoteCount,
-              absorbedDn.isVideo
-            );
-          }
-
-          // remove line
-          const idxLine=closestIdx*6;
-          linePositions[idxLine+0]=-9999;
-          linePositions[idxLine+1]=-9999;
-          linePositions[idxLine+2]=-9999;
-          linePositions[idxLine+3]=-9999;
-          linePositions[idxLine+4]=-9999;
-          linePositions[idxLine+5]=-9999;
-          lineSegments.geometry.attributes.position.needsUpdate=true;
-
-          recalculateDnMasses(dnData.filter(d=>d.alive));
-
-          // keep last 10
-          absorbedHistory.unshift({ title: postTitle, postUrl });
-          if(absorbedHistory.length>10){
-            absorbedHistory.pop();
-          }
-          updatePostListUI();
-        }
-      });
+      }
+    
+      // 3) If we found something, absorb it
+      if (closestIdx >= 0) {
+        absorbDn(closestIdx);
+      }
     }
+    
+    function absorbDn(dnIndex) {
+      const absorbedDn = dnData[dnIndex];
+      absorbedDn.alive = false;
+    
+      // Hide DN
+      const zeroMatrix = new three__WEBPACK_IMPORTED_MODULE_0__.Matrix4();
+      dnInstancedMesh.setMatrixAt(dnIndex, zeroMatrix);
+      dnInstancedMesh.instanceMatrix.needsUpdate = true;
+    
+      // If not a gif => auto-open
+      if (!absorbedDn.redditData.isGif) {
+        const imageUrl = absorbedDn.redditData.thumbnailUrl || "";
+        const postUrl = absorbedDn.redditData.permalink
+          ? "https://www.reddit.com" + absorbedDn.redditData.permalink
+          : "#";
+        const postTitle = absorbedDn.redditData.title || "(unnamed)";
+        const upvoteCount = absorbedDn.redditData.upvoteCount || 0;
+    
+        showAbsorbedMedia(
+          imageUrl,
+          absorbedDn.videoUrl,
+          postUrl,
+          postTitle,
+          upvoteCount,
+          absorbedDn.isVideo
+        );
+      }
+    
+      // Remove line
+      const idxLine = dnIndex * 6;
+      linePositions[idxLine + 0] = -9999;
+      linePositions[idxLine + 1] = -9999;
+      linePositions[idxLine + 2] = -9999;
+      linePositions[idxLine + 3] = -9999;
+      linePositions[idxLine + 4] = -9999;
+      linePositions[idxLine + 5] = -9999;
+      lineSegments.geometry.attributes.position.needsUpdate = true;
+    
+      recalculateDnMasses(dnData.filter((d) => d.alive));
+    
+      // keep last 10
+      absorbedHistory.unshift({
+        title: absorbedDn.redditData.title || "(unnamed)",
+        postUrl: absorbedDn.redditData.permalink
+          ? "https://www.reddit.com" + absorbedDn.redditData.permalink
+          : "#",
+      });
+      if (absorbedHistory.length > 10) {
+        absorbedHistory.pop();
+      }
+      updatePostListUI();
+    }
+    
 
     // Listen for "Threads" button => init
     const discoverBtnEl = document.getElementById("startButton");
