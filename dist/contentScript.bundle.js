@@ -22,6 +22,7 @@ __webpack_require__.r(__webpack_exports__);
  * - Show info pane for everything else on auto-absorb
  * - On click, always show the info pane (even GIF)
  * - Queue-based insertion, multiple PMNs, pause/play
+ * - ADD: Back/Forward buttons + icons
  ************************************************************/
 
 
@@ -54,7 +55,7 @@ function createGravitasSimulation(parentEl) {
   centeredText.innerHTML = "<strong>Reddit Threads</strong> driven by physics.";
   container.appendChild(centeredText);
 
-  // Top center container (logo + discover button + pause btn)
+  // Top center container
   const topCenterContainer = document.createElement("div");
   topCenterContainer.id = "top-center-container";
   topCenterContainer.style.position = "absolute";
@@ -64,6 +65,7 @@ function createGravitasSimulation(parentEl) {
   topCenterContainer.style.zIndex = "9999";
   topCenterContainer.style.display = "flex";
   topCenterContainer.style.alignItems = "center";
+  // Adjust spacing if needed
   topCenterContainer.style.gap = "20px";
 
   // Simple Logo
@@ -80,6 +82,9 @@ function createGravitasSimulation(parentEl) {
   logo.style.webkitUserSelect = "none";
   logo.style.msUserSelect = "none";
   logo.style.MozUserSelect = "none";
+  logo.style.verticalAlign = "middle";
+  logo.style.marginTop = "10px";
+
 
   // "Threads" Button
   const discoverBtn = document.createElement("button");
@@ -98,32 +103,47 @@ function createGravitasSimulation(parentEl) {
   discoverBtn.style.webkitUserSelect = "none";
   discoverBtn.style.msUserSelect = "none";
   discoverBtn.style.MozUserSelect = "none";
+  // Prevent text clipping
+  discoverBtn.style.minWidth = "80px";
 
-  // Play/Pause Button
-  const togglePlayBtn = document.createElement("button");
-  togglePlayBtn.id = "togglePlayButton";
-  togglePlayBtn.textContent = "Pause";
-  togglePlayBtn.style.padding = "10px 20px";
-  togglePlayBtn.style.backgroundColor = "#FFFFFF";
-  togglePlayBtn.style.border = "none";
-  togglePlayBtn.style.borderRadius = "4px";
-  togglePlayBtn.style.cursor = "pointer";
-  togglePlayBtn.style.color = "black";
-  togglePlayBtn.style.display = "inline-flex";
-  togglePlayBtn.style.alignItems = "center";
-  togglePlayBtn.style.justifyContent = "center";
-  togglePlayBtn.style.userSelect = "none";
-  togglePlayBtn.style.webkitUserSelect = "none";
-  togglePlayBtn.style.msUserSelect = "none";
-  togglePlayBtn.style.MozUserSelect = "none";
-  // We will attach its event listener below in the IIFE
+  // Play/Pause Icon (clickable <img>)
+  const playPauseIcon = document.createElement("img");
+  playPauseIcon.id = "togglePlayIcon";
+  playPauseIcon.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/fa-solid-pause.png"; 
+  playPauseIcon.style.width = "20px";
+  playPauseIcon.style.height = "20px";
+  playPauseIcon.style.cursor = "pointer";
+  playPauseIcon.style.userSelect = "none";
+  playPauseIcon.draggable = false;
+  playPauseIcon.style.marginTop = "10px";
 
+  // Back Icon
+  const backIcon = document.createElement("img");
+  backIcon.id = "backIcon";
+  backIcon.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/fa-solid-backward.png";
+  backIcon.style.width = "20px";
+  backIcon.style.height = "20px";
+  backIcon.style.cursor = "pointer";
+  backIcon.style.userSelect = "none";
+  backIcon.draggable = false;
+  backIcon.style.marginTop = "10px";
 
-  // Create a small wrapper
+  // Forward Icon
+  const forwardIcon = document.createElement("img");
+  forwardIcon.id = "forwardIcon";
+  forwardIcon.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/fa-solid-forward.png";
+  forwardIcon.style.width = "20px";
+  forwardIcon.style.height = "20px";
+  forwardIcon.style.cursor = "pointer";
+  forwardIcon.style.userSelect = "none";
+  forwardIcon.draggable = false;
+  forwardIcon.style.marginTop = "10px";
+
+  // Speed slider wrapper
   const speedWrapper = document.createElement("div");
   speedWrapper.style.display = "inline-flex";
   speedWrapper.style.alignItems = "center";
-  speedWrapper.style.gap = "1px"; // or however much spacing you like
+  speedWrapper.style.gap = "8px";
 
   // Create the label
   const speedLabel = document.createElement("label");
@@ -132,6 +152,8 @@ function createGravitasSimulation(parentEl) {
   speedLabel.style.color = "black";
   speedLabel.style.fontSize = "12px";
   speedLabel.style.userSelect = "none";
+  // Ensure there's enough width to show e.g. "3s"
+  speedLabel.style.minWidth = "24px";
 
   // Create the slider
   const speedSlider = document.createElement("input");
@@ -146,13 +168,15 @@ function createGravitasSimulation(parentEl) {
   speedWrapper.appendChild(speedLabel);
   speedWrapper.appendChild(speedSlider);
 
-  // Now add that wrapper to topCenterContainer
+  // Append everything in order
   topCenterContainer.appendChild(speedWrapper);
-
-
   topCenterContainer.appendChild(logo);
   topCenterContainer.appendChild(discoverBtn);
-  topCenterContainer.appendChild(togglePlayBtn);
+  topCenterContainer.appendChild(playPauseIcon);
+  topCenterContainer.appendChild(backIcon);
+  topCenterContainer.appendChild(forwardIcon);
+
+  // Add this container to parent
   container.appendChild(topCenterContainer);
 
   // "Post List" panel
@@ -172,13 +196,13 @@ function createGravitasSimulation(parentEl) {
   postListPanel.style.display = "none";
   postListPanel.style.color = "#000";
   postListPanel.style.zIndex = "9999";
-  container.appendChild(postListPanel);
   postListPanel.style.userSelect = "none";
   postListPanel.style.webkitUserSelect = "none";
   postListPanel.style.msUserSelect = "none";
   postListPanel.style.MozUserSelect = "none";
+  container.appendChild(postListPanel);
 
-  // Absorbed Image Container (simple)
+  // Absorbed Image Container
   const absorbedImageContainer = document.createElement("div");
   absorbedImageContainer.id = "absorbedImageContainer";
   absorbedImageContainer.style.position = "absolute";
@@ -196,7 +220,6 @@ function createGravitasSimulation(parentEl) {
   absorbedImageContainer.style.msUserSelect = "none";
   absorbedImageContainer.style.MozUserSelect = "none";
 
-  // We'll keep the existing <img>...
   const absorbedImageLink = document.createElement("a");
   absorbedImageLink.id = "absorbedImageLink";
   absorbedImageLink.href = "#";
@@ -205,11 +228,11 @@ function createGravitasSimulation(parentEl) {
   absorbedImageLink.style.border = "2px solid rgba(255, 255, 255, 0)";
   absorbedImageLink.style.borderRadius = "4px";
   absorbedImageLink.style.userSelect = "none";
-  absorbedImageLink.setAttribute("draggable", "false");
+  absorbedImageLink.draggable = false;
 
   const absorbedImage = document.createElement("img");
   absorbedImage.id = "absorbedImage";
-  absorbedImage.src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="; 
+  absorbedImage.src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
   absorbedImage.alt = "Reddit Preview Image";
   absorbedImage.style.display = "block";
   absorbedImage.style.width = "auto";
@@ -219,13 +242,14 @@ function createGravitasSimulation(parentEl) {
   absorbedImage.style.maxHeight = "100%";
   absorbedImage.style.objectFit = "contain";
   absorbedImage.style.userSelect = "none";
-  absorbedImage.setAttribute("draggable", "false");
+  absorbedImage.draggable = false;
 
+  // prevent drag
   absorbedImage.addEventListener("dragstart", (e) => e.preventDefault());
   absorbedImageLink.addEventListener("dragstart", (e) => e.preventDefault());
   absorbedImageLink.appendChild(absorbedImage);
 
-  // ...AND we add a <video> for .mp4
+  // <video> for .mp4
   const absorbedVideo = document.createElement("video");
   absorbedVideo.id = "absorbedVideo";
   absorbedVideo.style.display = "none"; // hidden by default
@@ -234,14 +258,12 @@ function createGravitasSimulation(parentEl) {
   absorbedVideo.style.maxWidth = "100%";
   absorbedVideo.style.maxHeight = "100%";
   absorbedVideo.style.objectFit = "contain";
-  // *** We add these to ensure autoplay/loop (and usually must be muted):
   absorbedVideo.setAttribute("controls", "true");
   absorbedVideo.setAttribute("loop", "true");
   absorbedVideo.setAttribute("autoplay", "true");
   absorbedVideo.muted = true;  // needed for most browsers to autoplay
-  // ***
 
-  // Put them all in the same container
+  // Put image/video in same container
   absorbedImageContainer.appendChild(absorbedImageLink);
   absorbedImageContainer.appendChild(absorbedVideo);
   container.appendChild(absorbedImageContainer);
@@ -283,6 +305,7 @@ function createGravitasSimulation(parentEl) {
   absorbedDetailsContainer.appendChild(detailsPrice);
   container.appendChild(absorbedDetailsContainer);
 
+
   // Finally, add this container to the user-chosen parent
   parentEl.appendChild(container);
 
@@ -319,10 +342,16 @@ function createGravitasSimulation(parentEl) {
     let sceneCenter = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3();
     let amplitude = new three__WEBPACK_IMPORTED_MODULE_0__.Vector3(20, 20, 20);
 
-    let isPaused = false; // for play/pause
+    // For play/pause
+    let isPaused = false;
+
     // We'll store multiple feed types
     const FEED_TYPES = ["hot", "new", "top", "topYear"];
+
+    // Array that holds absorbed DNs (latest at the end).
     let absorbedHistory = [];
+    // Pointer for "back" navigation (default = -1 means "none shown yet").
+    let absorbedHistoryIndex = -1;
 
     // PMNs: upvoteFactor, commentFactor, newnessFactor
     const pmnMetrics = [
@@ -338,20 +367,19 @@ function createGravitasSimulation(parentEl) {
       position: null
     }));
 
+    // Speed slider
     speedSlider.addEventListener("input", () => {
-      // Read the slider value (string -> number)
+      // Convert string -> number
       const newValue = parseFloat(speedSlider.value);
-    
-      // We want "1" to mean 1 second, "10" to mean 10 seconds
-      // so we can assign directly:
+      // 1 => 1 second, 20 => 20 seconds, etc.
       ABSORPTION_INTERVAL = newValue;
-    
-      // Optional: Update the label text to show the user the current # of seconds
+      // Update the label
       speedLabel.textContent = `${newValue}s`;
     });
-    
+    // Initialize once
+    speedLabel.textContent = `${ABSORPTION_INTERVAL}s`;
 
-    // Colors for click
+    // Colors for when a user clicks a sphere
     const clickColors = ["#FF6188", "#A9DC76", "#FFD866", "#78DCE8", "#AB9DF2"];
 
     /************************************************************
@@ -366,7 +394,9 @@ function createGravitasSimulation(parentEl) {
       heading.style.marginBottom = "8px";
       panel.appendChild(heading);
 
-      absorbedHistory.forEach((item) => {
+      // We want newest on top => iterate reversed
+      for (let i = absorbedHistory.length - 1; i >= 0; i--) {
+        const item = absorbedHistory[i];
         const link = document.createElement("a");
         link.href = item.postUrl || "#";
         link.target = "_blank";
@@ -376,7 +406,7 @@ function createGravitasSimulation(parentEl) {
         link.style.textDecoration = "none";
         link.style.color = "#0077cc";
         panel.appendChild(link);
-      });
+      }
 
       if (absorbedHistory.length > 0) {
         panel.style.display = "block";
@@ -398,28 +428,24 @@ function createGravitasSimulation(parentEl) {
       if (link) link.href = redditUrl || "#";
 
       if (isVideo && videoUrl) {
-        // Show the <video>, hide the <img>
+        // Show <video>, hide <img>
         img.style.display = "none";
         vid.style.display = "block";
         vid.src = videoUrl;
-        // Will autoplay because of the attributes we set
         vid.onclick = () => {
           window.open(redditUrl, "_blank");
         };
-        // Force it to load again in case user paused it last time
-        vid.load();
+        vid.load(); // force reload
       } else {
-        // Show the <img>, hide the <video>
+        // Show <img>, hide <video>
         vid.style.display = "none";
         vid.src = "";
         img.style.display = "block";
         img.src = imageUrl || "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
       }
 
-      // Always reveal container + details once something loads
+      // Reveal container + details
       if (container) container.style.display = "block";
-
-      // Just call existing details logic
       showDetailsPane(postTitle, upvoteCount);
     }
 
@@ -441,6 +467,24 @@ function createGravitasSimulation(parentEl) {
 
       const imgCont = document.getElementById("absorbedImageContainer");
       if (imgCont) imgCont.style.display = "none";
+    }
+
+    /************************************************************
+     * Show previously absorbed item at index in 'absorbedHistory'
+     ************************************************************/
+    function showAbsorbedHistoryAtIndex(idx) {
+      // bounds-check
+      if (idx < 0 || idx >= absorbedHistory.length) return;
+
+      const item = absorbedHistory[idx];
+      showAbsorbedMedia(
+        item.thumbnailUrl,
+        item.videoUrl,
+        item.postUrl,
+        item.title,
+        item.upvoteCount,
+        item.isVideo
+      );
     }
 
     /************************************************************
@@ -559,7 +603,7 @@ function createGravitasSimulation(parentEl) {
     }
 
     function mapRedditPostToSimple(postData) {
-      // 1) If there's a reddit_video_preview...
+      // Check for reddit_video_preview
       if (
         postData.preview &&
         postData.preview.reddit_video_preview &&
@@ -570,91 +614,81 @@ function createGravitasSimulation(parentEl) {
           upvoteCount: postData.ups || 0,
           commentCount: postData.num_comments || 0,
           permalink: postData.permalink || "",
-          createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
-    
+          createdAt: postData.created_utc ? postData.created_utc * 1000 : Date.now(),
           isVideo: true,
           videoUrl: postData.preview.reddit_video_preview.fallback_url,
           thumbnailUrl: getHighResImageFromRedditPost(postData),
         };
       }
-    
-      // 2) Then your normal check for reddit_video
+
+      // check normal is_video
       const isVideoPost = 
         postData.is_video &&
         postData.media &&
         postData.media.reddit_video &&
         postData.media.reddit_video.fallback_url;
-    
+
       if (isVideoPost) {
         return {
           title: postData.title || "Untitled",
           upvoteCount: postData.ups || 0,
           commentCount: postData.num_comments || 0,
           permalink: postData.permalink || "",
-          createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
-    
+          createdAt: postData.created_utc ? postData.created_utc * 1000 : Date.now(),
           isVideo: true,
           videoUrl: postData.media.reddit_video.fallback_url,
           thumbnailUrl: getHighResImageFromRedditPost(postData),
         };
       }
-    
-      // 3) If domain is "i.imgur.com" or "imgur.com" and the url ends with .gifv,
-      //    we can forcibly treat it as a .mp4
-      //    Example: "https://i.imgur.com/6FdKAB9.gifv" -> "https://i.imgur.com/6FdKAB9.mp4"
+
+      // check .gifv from imgur => treat as .mp4
       const finalUrl = postData.url_overridden_by_dest || postData.url || "";
       const domainLower = (postData.domain || "").toLowerCase();
       if (
-        (domainLower.includes("imgur.com")) &&
+        domainLower.includes("imgur.com") &&
         finalUrl.toLowerCase().endsWith(".gifv")
       ) {
-        // Convert .gifv to .mp4
+        // convert .gifv to .mp4
         const mp4Link = finalUrl.replace(/\.gifv$/i, ".mp4");
-    
         return {
           title: postData.title || "Untitled",
           upvoteCount: postData.ups || 0,
           commentCount: postData.num_comments || 0,
           permalink: postData.permalink || "",
-          createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
-    
+          createdAt: postData.created_utc ? postData.created_utc * 1000 : Date.now(),
           isVideo: true,
           videoUrl: mp4Link,
-          // You could still supply a fallback image from getHighResImageFromRedditPost
           thumbnailUrl: getHighResImageFromRedditPost(postData),
         };
       }
-    
-      // 4) Otherwise, treat as image/gif
+
+      // default => treat as image
       return {
         title: postData.title || "Untitled",
         upvoteCount: postData.ups || 0,
         commentCount: postData.num_comments || 0,
         permalink: postData.permalink || "",
-        createdAt: postData.created_utc ? (postData.created_utc * 1000) : Date.now(),
-    
+        createdAt: postData.created_utc ? postData.created_utc * 1000 : Date.now(),
         isVideo: false,
         videoUrl: "",
         thumbnailUrl: getHighResImageFromRedditPost(postData),
       };
     }
-    
 
     function getHighResImageFromRedditPost(d) {
-      // if it ends with .gif
+      // .gif
       if (d.url && d.url.endsWith(".gif")) {
         return d.url;
       }
-      // check preview
+      // preview gif
       if (d.preview && d.preview.images && d.preview.images[0]) {
-        const previewObj = d.preview.images[0];
-        const variants = previewObj.variants;
+        const variants = d.preview.images[0].variants;
         if (variants && variants.gif && variants.gif.source && variants.gif.source.url) {
           return variants.gif.source.url.replace(/&amp;/g, "&");
         }
       }
-      // fallback
-      if (d.preview && d.preview.images && d.preview.images.length>0) {
+      // fallback to preview
+      if (d.preview && d.preview.images && d.preview.images.length > 0) {
         const firstImage = d.preview.images[0];
         if (firstImage.source && firstImage.source.url) {
           return firstImage.source.url.replace(/&amp;/g, "&");
@@ -668,7 +702,7 @@ function createGravitasSimulation(parentEl) {
     }
 
     /************************************************************
-     * 3) Combined fetch logic: multiple feed
+     * 3) Combined fetch logic: multiple feeds
      ************************************************************/
     async function fetchAllRedditThreads() {
       const redditPath = getCurrentRedditPathFromUrl();
@@ -689,8 +723,7 @@ function createGravitasSimulation(parentEl) {
         for (let p of allPosts) {
           uniqueMap.set(p.permalink, p);
         }
-        const uniquePosts = Array.from(uniqueMap.values());
-        return uniquePosts;
+        return Array.from(uniqueMap.values());
       }
     }
 
@@ -710,10 +743,8 @@ function createGravitasSimulation(parentEl) {
         const upvoteFactor = Math.min(post.upvoteCount/5000, 1.0);
         const commentFactor = Math.min(post.commentCount/500, 1.0);
 
-        // detect if .gif => skip auto absorption
         const isGif = post.thumbnailUrl.toLowerCase().endsWith(".gif");
 
-        // Return the data.  Notice we also store `isVideo` from `post.isVideo`.
         return {
           redditData: {
             title: post.title,
@@ -722,10 +753,8 @@ function createGravitasSimulation(parentEl) {
             thumbnailUrl: post.thumbnailUrl,
             isGif
           },
-          // We'll keep these top-level so we can show them in showClickedDnBriefly
-          isVideo: post.isVideo,         // <--- store that here
-          videoUrl: post.videoUrl || "", // <--- store mp4 link
-
+          isVideo: post.isVideo,
+          videoUrl: post.videoUrl || "",
           attributes: {
             upvoteFactor,
             commentFactor,
@@ -768,17 +797,17 @@ function createGravitasSimulation(parentEl) {
     function scaleDNsTo1000(dnData) {
       if (!dnData.length) return dnData;
       const origCount = dnData.length;
-      while (dnData.length<1000) {
-        const src = dnData[dnData.length%origCount];
+      while (dnData.length < 1000) {
+        const src = dnData[dnData.length % origCount];
         const clone = {
           redditData: { ...src.redditData },
           isVideo: src.isVideo,
           videoUrl: src.videoUrl,
           attributes: { ...src.attributes },
           position: new three__WEBPACK_IMPORTED_MODULE_0__.Vector3(
-            Math.random()*700,
-            Math.random()*600,
-            Math.random()*400
+            Math.random() * 700,
+            Math.random() * 600,
+            Math.random() * 400
           ),
           velocity: new three__WEBPACK_IMPORTED_MODULE_0__.Vector3(0,0,0),
           mass: src.mass,
@@ -800,7 +829,7 @@ function createGravitasSimulation(parentEl) {
         rawDNs.forEach(dn => {
           dn.mass = calculateDnMass(dn);
         });
-        if (rawDNs.length<1000) {
+        if (rawDNs.length < 1000) {
           scaleDNsTo1000(rawDNs);
         }
         queuedDNs = rawDNs.slice();
@@ -872,7 +901,7 @@ function createGravitasSimulation(parentEl) {
     function startQueueTimer() {
       if (queueTimerHandle) clearInterval(queueTimerHandle);
       queueTimerHandle = setInterval(() => {
-        if (queuedDNs.length===0) {
+        if (queuedDNs.length === 0) {
           clearInterval(queueTimerHandle);
           queueTimerHandle = null;
           return;
@@ -960,7 +989,7 @@ function createGravitasSimulation(parentEl) {
       tmpMatrix.makeTranslation(dn.position.x, dn.position.y, dn.position.z);
       dnInstancedMesh.setMatrixAt(i, tmpMatrix);
 
-      // If it's .gif OR .isVideo => lighter color
+      // If it's .gif or isVideo => lighter color
       if (dn.redditData.isGif || dn.isVideo) {
         dnInstancedMesh.setColorAt(i, new three__WEBPACK_IMPORTED_MODULE_0__.Color("#E0E0E0"));
       } else {
@@ -990,16 +1019,16 @@ function createGravitasSimulation(parentEl) {
       }
     }
 
-    // ---------- The main animation loop ----------
+    // Main animation loop
     function animate() {
       requestAnimationFrame(animate);
       const dt = clock.getDelta();
 
       if (!isPaused) {
         applyForces();
-        timeSinceAbsorption+=dt;
-        if (timeSinceAbsorption>=ABSORPTION_INTERVAL) {
-          timeSinceAbsorption=0;
+        timeSinceAbsorption += dt;
+        if (timeSinceAbsorption >= ABSORPTION_INTERVAL) {
+          timeSinceAbsorption = 0;
           timeBasedAbsorption();
         }
       }
@@ -1107,7 +1136,7 @@ function createGravitasSimulation(parentEl) {
       // 1) Pick a random PMN
       const randomIndex = Math.floor(Math.random() * pmnData.length);
       const pmn = pmnData[randomIndex];
-    
+
       // 2) Find the nearest DN to that one PMN
       let closestIdx = -1;
       let minDist = Infinity;
@@ -1120,22 +1149,22 @@ function createGravitasSimulation(parentEl) {
           closestIdx = i;
         }
       }
-    
+
       // 3) If we found something, absorb it
       if (closestIdx >= 0) {
         absorbDn(closestIdx);
       }
     }
-    
+
     function absorbDn(dnIndex) {
       const absorbedDn = dnData[dnIndex];
       absorbedDn.alive = false;
-    
+
       // Hide DN
       const zeroMatrix = new three__WEBPACK_IMPORTED_MODULE_0__.Matrix4();
       dnInstancedMesh.setMatrixAt(dnIndex, zeroMatrix);
       dnInstancedMesh.instanceMatrix.needsUpdate = true;
-    
+
       // If not a gif => auto-open
       if (!absorbedDn.redditData.isGif) {
         const imageUrl = absorbedDn.redditData.thumbnailUrl || "";
@@ -1144,7 +1173,7 @@ function createGravitasSimulation(parentEl) {
           : "#";
         const postTitle = absorbedDn.redditData.title || "(unnamed)";
         const upvoteCount = absorbedDn.redditData.upvoteCount || 0;
-    
+
         showAbsorbedMedia(
           imageUrl,
           absorbedDn.videoUrl,
@@ -1153,8 +1182,11 @@ function createGravitasSimulation(parentEl) {
           upvoteCount,
           absorbedDn.isVideo
         );
+      } else {
+        // If it's a GIF, we won't auto-open (following your logic),
+        // but we *could* do something else here if desired.
       }
-    
+
       // Remove line
       const idxLine = dnIndex * 6;
       linePositions[idxLine + 0] = -9999;
@@ -1164,22 +1196,28 @@ function createGravitasSimulation(parentEl) {
       linePositions[idxLine + 4] = -9999;
       linePositions[idxLine + 5] = -9999;
       lineSegments.geometry.attributes.position.needsUpdate = true;
-    
+
       recalculateDnMasses(dnData.filter((d) => d.alive));
-    
-      // keep last 10
-      absorbedHistory.unshift({
+
+      // Keep track in history
+      // Instead of unshift, we'll push so newest is at the end:
+      const historyItem = {
         title: absorbedDn.redditData.title || "(unnamed)",
         postUrl: absorbedDn.redditData.permalink
           ? "https://www.reddit.com" + absorbedDn.redditData.permalink
           : "#",
-      });
-      if (absorbedHistory.length > 10) {
-        absorbedHistory.pop();
-      }
+        thumbnailUrl: absorbedDn.redditData.thumbnailUrl || "",
+        videoUrl: absorbedDn.videoUrl || "",
+        isVideo: absorbedDn.isVideo,
+        upvoteCount: absorbedDn.redditData.upvoteCount || 0
+      };
+      absorbedHistory.push(historyItem);
+
+      // Update our pointer to the newest item
+      absorbedHistoryIndex = absorbedHistory.length - 1;
+
       updatePostListUI();
     }
-    
 
     // Listen for "Threads" button => init
     const discoverBtnEl = document.getElementById("startButton");
@@ -1191,16 +1229,46 @@ function createGravitasSimulation(parentEl) {
       });
     }
 
-    // Listen for play/pause
-    const toggleEl = document.getElementById("togglePlayButton");
-    if(toggleEl){
-      toggleEl.addEventListener("click",()=>{
-        isPaused=!isPaused;
-        toggleEl.textContent=isPaused?"Play":"Pause";
+    // Attach the new event listeners to the <img> IDs:
+
+    // 1) Play/Pause Icon
+    const toggleIconEl = document.getElementById("togglePlayIcon");
+    if (toggleIconEl) {
+      toggleIconEl.addEventListener("click", () => {
+        isPaused = !isPaused;
+
+        // Swap the icon based on paused or not
+        if (isPaused) {
+          toggleIconEl.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/fa-solid-play.png";
+        } else {
+          toggleIconEl.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/fa-solid-pause.png";
+        }
       });
     }
 
-  })(); // end IIFE
+    // 2) Back icon
+    const backIconEl = document.getElementById("backIcon");
+    if (backIconEl) {
+      backIconEl.addEventListener("click", () => {
+        // your "back" logic here, e.g.:
+        if (absorbedHistoryIndex > 0) {
+          absorbedHistoryIndex--;
+          showAbsorbedHistoryAtIndex(absorbedHistoryIndex);
+        }
+      });
+    }
+
+    // 3) Forward icon
+    const forwardIconEl = document.getElementById("forwardIcon");
+    if (forwardIconEl) {
+      forwardIconEl.addEventListener("click", () => {
+        // your "forward" logic, e.g. immediate absorption
+        timeBasedAbsorption();
+      });
+    }
+
+    // ... rest of your code (including showAbsorbedHistoryAtIndex, timeBasedAbsorption, etc.) ...
+  })();
 }
 
 function launchGravitas(){
