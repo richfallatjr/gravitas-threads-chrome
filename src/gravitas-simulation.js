@@ -229,6 +229,11 @@ export function createGravitasSimulation(parentEl) {
   absorbedImage.style.userSelect = "none";
   absorbedImage.draggable = false;
 
+  absorbedImageContainer.style.pointerEvents = "auto";
+  absorbedImage.style.pointerEvents = "auto";
+  absorbedImageLink.style.pointerEvents = "auto";
+
+
   // prevent drag
   absorbedImage.addEventListener("dragstart", (e) => e.preventDefault());
   absorbedImageLink.addEventListener("dragstart", (e) => e.preventDefault());
