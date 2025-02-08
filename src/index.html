@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gravitas Single Page</title>
+  <!-- 1) Montserrat from Google Fonts -->
+  <link rel="stylesheet" 
+        href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap">
+  <!-- THREE.js (for the big Gravitas snippet) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.127.0/build/three.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Montserrat', sans-serif;
+      margin: 0; padding: 0;
+      background: #F2F2F2;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 50px auto;
+      max-width: 500px;
+    }
+    label {
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+    input {
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-right: 10px;
+      font-size: 14px;
+    }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      background-color: #333;
+      color: #fff;
+      font-size: 14px;
+      font-family: 'Montserrat', sans-serif;
+    }
+    button:hover {
+      background-color: #555;
+    }
+
+    /* Popup Overlay */
+    #gravitas-popup-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 9999999;
+      display: none; /* hidden by default */
+    }
+    /* Popup Container (white box) */
+    #gravitas-popup-container {
+      position: absolute;
+      width: 1024px;
+      height: 800px;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: #fff;
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      font-family: 'Montserrat', sans-serif;
+    }
+    /* Close Button inside popup */
+    #closePopupBtn {
+      position: absolute;
+      top: 10px; right: 15px;
+      font-size: 24px;
+      background: none; border: none;
+      cursor: pointer; color: #333;
+      z-index: 99999999;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <label for="subInput">Enter a Subreddit:</label>
+  <div>
+    <input type="text" id="subInput" placeholder="e.g. funny, pics, etc." />
+    <button id="startBtn">Start</button>
+  </div>
+</div>
+
+<!-- Popup overlay + container (initially hidden) -->
+<div id="gravitas-popup-overlay">
+  <div id="gravitas-popup-container">
+    <button id="closePopupBtn">×</button>
+    <!-- Gravitas Simulation will be injected here -->
+  </div>
+</div>
+
+<script>
+/***********************************************************
+ *  Merged Gravitas logic:
+ *  - We define one function createGravitasSimulation(parentEl, subreddit)
+ *    from the large snippet.
+ *  - We define showGravitasPopup(subreddit) to create the popup
+ *    (like content-script.js).
+ *  - Then we handle the single text-input & Start button click.
+ ***********************************************************/
+
+/**
+ * createGravitasSimulation
+ * Merged Large Version but we pass in "subreddit" as a parameter
+ * (instead of reading from window.location).
+ */
+
+function createGravitasSimulation(parentEl, subreddit) {
+  // =======================
+  //  1. Create the DOM container & sub-elements
+  // =======================
+  const container = document.createElement("div");
+  container.id = "simulation-container";
+  container.style.position = "relative";
+  container.style.width = "100%";
+  container.style.height = "100%";
+  container.style.margin = "0 auto";
+  container.style.backgroundColor = "#F2F2F2";
+
+  // Centered text
+  const centeredText = document.createElement("div");
+  centeredText.id = "centeredText";
+  centeredText.style.position = "absolute";
+  centeredText.style.top = "50%";
+  centeredText.style.left = "50%";
+  centeredText.style.transform = "translate(-50%, -50%)";
+  centeredText.style.zIndex = "9999";
+  centeredText.style.fontSize = "20px";
+  centeredText.style.color = "#000";
+  centeredText.style.fontFamily = "'Montserrat', sans-serif";
+  centeredText.style.textAlign = "center";
+  centeredText.innerHTML = "<strong>Reddit Threads</strong> driven by physics.";
+  container.appendChild(centeredText);
+
+  // Top center container (logo, sliders, icons, etc.)
+  const topCenterContainer = document.createElement("div");
+  topCenterContainer.id = "top-center-container";
+  topCenterContainer.style.position = "absolute";
+  topCenterContainer.style.top = "10px";
+  topCenterContainer.style.left = "50%";
+  topCenterContainer.style.transform = "translateX(-50%)";
+  topCenterContainer.style.zIndex = "9999";
+  topCenterContainer.style.display = "flex";
+  topCenterContainer.style.alignItems = "center";
+  topCenterContainer.style.gap = "20px";
+
+  // Simple Logo
+  const logo = document.createElement("img");
+  logo.id = "logo";
+  logo.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/gravitas-logo-solo.png";
+  logo.alt = "Gravitas Logo";
+  logo.style.height = "30px";
+  logo.style.cursor = "pointer";
+  logo.style.display = "inline-flex";
+  logo.style.alignItems = "center";
+  logo.style.justifyContent = "center";
+  logo.style.userSelect = "none";
+  logo.draggable = false;
+  logo.style.verticalAlign = "middle";
+  logo.style.marginTop = "10px";
+
+  // "Threads" Button
+  const discoverBtn = document.createElement("button");
+  discoverBtn.id = "startButton";
+  discoverBtn.textContent = "Threads";
+  discoverBtn.style.padding = "10px 20px";
+  discoverBtn.style.backgroundColor = "#FFFFFF";
+  discoverBtn.style.border = "none";
+  discoverBtn.style.borderRadius = "4px";
+  discoverBtn.style.cursor = "pointer";
+  discoverBtn.style.color = "black";
+  discoverBtn.style.display = "inline-flex";
+  discoverBtn.style.alignItems = "center";
+  discoverBtn.style.justifyContent = "center";
+  discoverBtn.style.userSelect = "none";
+  discoverBtn.style.minWidth = "80px";
+
+  // Play/Pause Icon
+  const playPauseIcon = document.createElement("img");
+  playPauseIcon.id = "togglePlayIcon";
+  playPauseIcon.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/fa-solid-pause.png"; 
+  playPauseIcon.style.width = "20px";
+  playPauseIcon.style.height = "20px";
+  playPauseIcon.style.cursor = "pointer";
+  playPauseIcon.style.userSelect = "none";
+  playPauseIcon.draggable = false;
+  playPauseIcon.style.marginTop = "10px";
+
+  // Back Icon
+  const backIcon = document.createElement("img");
+  backIcon.id = "backIcon";
+  backIcon.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/fa-solid-backward.png";
+  backIcon.style.width = "20px";
+  backIcon.style.height = "20px";
+  backIcon.style.cursor = "pointer";
+  backIcon.style.userSelect = "none";
+  backIcon.draggable = false;
+  backIcon.style.marginTop = "10px";
+
+  // Forward Icon
+  const forwardIcon = document.createElement("img");
+  forwardIcon.id = "forwardIcon";
+  forwardIcon.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/fa-solid-forward.png";
+  forwardIcon.style.width = "20px";
+  forwardIcon.style.height = "20px";
+  forwardIcon.style.cursor = "pointer";
+  forwardIcon.style.userSelect = "none";
+  forwardIcon.draggable = false;
+  forwardIcon.style.marginTop = "10px";
+
+  // Speed slider wrapper
+  const speedWrapper = document.createElement("div");
+  speedWrapper.style.display = "inline-flex";
+  speedWrapper.style.alignItems = "center";
+  speedWrapper.style.gap = "8px";
+
+  // Speed label
+  const speedLabel = document.createElement("label");
+  speedLabel.id = "speedLabel";
+  speedLabel.textContent = "";
+  speedLabel.style.color = "black";
+  speedLabel.style.fontSize = "12px";
+  speedLabel.style.userSelect = "none";
+  speedLabel.style.minWidth = "24px";
+
+  // Speed slider
+  const speedSlider = document.createElement("input");
+  speedSlider.id = "speedSlider";
+  speedSlider.type = "range";
+  speedSlider.min = "1";
+  speedSlider.max = "20";
+  speedSlider.value = "3";
+  speedSlider.style.cursor = "pointer";
+
+  speedWrapper.appendChild(speedLabel);
+  speedWrapper.appendChild(speedSlider);
+
+  topCenterContainer.appendChild(speedWrapper);
+  topCenterContainer.appendChild(logo);
+  topCenterContainer.appendChild(discoverBtn);
+  topCenterContainer.appendChild(playPauseIcon);
+  topCenterContainer.appendChild(backIcon);
+  topCenterContainer.appendChild(forwardIcon);
+
+  container.appendChild(topCenterContainer);
+
+  // Post List panel
+  const postListPanel = document.createElement("div");
+  postListPanel.id = "postListPanel";
+  postListPanel.style.position = "absolute";
+  postListPanel.style.right = "20px";
+  postListPanel.style.bottom = "20px";
+  postListPanel.style.width = "200px";
+  postListPanel.style.maxHeight = "700px";
+  postListPanel.style.overflowY = "auto";
+  postListPanel.style.backgroundColor = "rgba(255, 255, 255, 0.8)";
+  postListPanel.style.padding = "10px";
+  postListPanel.style.borderRadius = "4px";
+  postListPanel.style.fontSize = "13px";
+  postListPanel.style.pointerEvents = "auto";
+  postListPanel.style.display = "none";
+  postListPanel.style.color = "#000";
+  postListPanel.style.zIndex = "9999";
+  postListPanel.style.userSelect = "none";
+  container.appendChild(postListPanel);
+
+  // Absorbed Image/Video Container
+  const absorbedImageContainer = document.createElement("div");
+  absorbedImageContainer.id = "absorbedImageContainer";
+  absorbedImageContainer.style.position = "absolute";
+  absorbedImageContainer.style.top = "50%";
+  absorbedImageContainer.style.left = "50%";
+  absorbedImageContainer.style.transform = "translate(-50%, -50%)";
+  absorbedImageContainer.style.zIndex = "9999";
+  absorbedImageContainer.style.display = "inline-block";
+  absorbedImageContainer.style.minWidth = "480px";
+  absorbedImageContainer.style.maxWidth = "480px";
+  absorbedImageContainer.style.maxHeight = "700px";
+  absorbedImageContainer.style.overflow = "hidden";
+  absorbedImageContainer.style.userSelect = "none";
+
+  const absorbedImageLink = document.createElement("a");
+  absorbedImageLink.id = "absorbedImageLink";
+  absorbedImageLink.href = "#";
+  absorbedImageLink.target = "_blank";
+  absorbedImageLink.style.display = "block";
+  absorbedImageLink.style.border = "2px solid rgba(255, 255, 255, 0)";
+  absorbedImageLink.style.borderRadius = "4px";
+  absorbedImageLink.style.userSelect = "none";
+  absorbedImageLink.draggable = false;
+
+  const absorbedImage = document.createElement("img");
+  absorbedImage.id = "absorbedImage";
+  absorbedImage.src = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+  absorbedImage.alt = "Reddit Preview Image";
+  absorbedImage.style.display = "block";
+  absorbedImage.style.width = "auto";
+  absorbedImage.style.height = "auto";
+  absorbedImage.style.minWidth = "480px";
+  absorbedImage.style.maxWidth = "100%";
+  absorbedImage.style.maxHeight = "100%";
+  absorbedImage.style.objectFit = "contain";
+  absorbedImage.draggable = false;
+
+  // <video> for mp4
+  const absorbedVideo = document.createElement("video");
+  absorbedVideo.id = "absorbedVideo";
+  absorbedVideo.style.display = "none"; // hidden by default
+  absorbedVideo.style.width = "auto";
+  absorbedVideo.style.height = "auto";
+  absorbedVideo.style.maxWidth = "100%";
+  absorbedVideo.style.maxHeight = "100%";
+  absorbedVideo.style.objectFit = "contain";
+  absorbedVideo.setAttribute("controls", "true");
+  absorbedVideo.setAttribute("loop", "true");
+  absorbedVideo.setAttribute("autoplay", "true");
+  absorbedVideo.muted = true;
+
+  absorbedImageLink.appendChild(absorbedImage);
+  absorbedImageContainer.appendChild(absorbedImageLink);
+  absorbedImageContainer.appendChild(absorbedVideo);
+  container.appendChild(absorbedImageContainer);
+
+  // Absorbed Details Container
+  const absorbedDetailsContainer = document.createElement("div");
+  absorbedDetailsContainer.id = "absorbedDetailsContainer";
+  absorbedDetailsContainer.style.position = "absolute";
+  absorbedDetailsContainer.style.bottom = "35px";
+  absorbedDetailsContainer.style.left = "50%";
+  absorbedDetailsContainer.style.transform = "translateX(-50%)";
+  absorbedDetailsContainer.style.zIndex = "9999";
+  absorbedDetailsContainer.style.width = "400px";
+  absorbedDetailsContainer.style.backgroundColor = "rgba(255, 255, 255, 0.75)";
+  absorbedDetailsContainer.style.border = "2px solid #000";
+  absorbedDetailsContainer.style.borderRadius = "8px";
+  absorbedDetailsContainer.style.padding = "12px";
+  absorbedDetailsContainer.style.display = "none";
+  absorbedDetailsContainer.style.textAlign = "center";
+  absorbedDetailsContainer.style.fontFamily = "'Montserrat', sans-serif";
+
+  const detailsTitle = document.createElement("h3");
+  detailsTitle.id = "detailsTitle";
+  detailsTitle.style.margin = "0 0 10px";
+  detailsTitle.style.fontSize = "16px";
+  detailsTitle.style.color = "#333";
+
+  const detailsPrice = document.createElement("p");
+  detailsPrice.id = "detailsPrice";
+  detailsPrice.style.margin = "0";
+  detailsPrice.style.fontSize = "16px";
+  detailsPrice.style.color = "#555";
+
+  absorbedDetailsContainer.appendChild(detailsTitle);
+  absorbedDetailsContainer.appendChild(detailsPrice);
+  container.appendChild(absorbedDetailsContainer);
+
+  // Add container to parent
+  parentEl.appendChild(container);
+
+  // For text override
+  const centerEl = document.getElementById("centeredText");
+
+  // =========================
+  //   The large IIFE logic
+  // =========================
+  (function(){
+    let dnData = [];
+    let queuedDNs = [];
+    let scene, camera, renderer, clock;
+    let dnInstancedMesh = null;
+    let lineSegments = null;
+    let linePositions = null;
+    let allMeshes = [];
+    let timeSinceAbsorption = 0;
+    let ABSORPTION_INTERVAL = 3.0;
+    let isPaused = false;
+
+    // "PMNs"
+    const pmnMetrics = [
+      { metric: "upvoteFactor", mass: 20 },
+      { metric: "commentFactor", mass: 12 },
+      { metric: "newnessFactor", mass: 15 }
+    ];
+    let pmnData = pmnMetrics.map(m => ({
+      mesh: null,
+      type: "PMN",
+      mass: m.mass,
+      metric: m.metric,
+      position: null
+    }));
+
+    const boundaryX = 700, boundaryY = 600, boundaryZ = 400;
+    const DRAG_THRESHOLD = 5;
+    let isMouseDown = false, isDragging = false, lastMouseX = 0, lastMouseY = 0;
+    let orbitAzimuth = 0, orbitPolar = Math.PI*0.5, orbitRadius=400;
+    let sceneCenter = new THREE.Vector3();
+    let amplitude = new THREE.Vector3(20, 20, 20);
+
+    const FEED_TYPES = ["hot","new","top","topYear"];
+    let absorbedHistory = [];
+    let absorbedHistoryIndex = -1;
+
+    const BATCH_SIZE = 50;
+    const QUEUE_INTERVAL_MS = 3000;
+    let queueTimerHandle = null;
+
+    // Color changes on click
+    const clickColors = ["#FF6188","#A9DC76","#FFD866","#78DCE8","#AB9DF2"];
+
+    // Grab references to newly created elements
+    const discoverBtnEl = document.getElementById("startButton");
+    const toggleIconEl  = document.getElementById("togglePlayIcon");
+    const backIconEl    = document.getElementById("backIcon");
+    const forwardIconEl = document.getElementById("forwardIcon");
+    const speedSliderEl = document.getElementById("speedSlider");
+    const speedLabelEl  = document.getElementById("speedLabel");
+
+    // 1) Post List Panel helper
+    function updatePostListUI() {
+      const panel = document.getElementById("postListPanel");
+      panel.innerHTML = "";
+      const heading = document.createElement("div");
+      heading.textContent = "Absorbed Posts:";
+      heading.style.fontWeight = "bold";
+      heading.style.marginBottom = "8px";
+      panel.appendChild(heading);
+
+      for (let i = absorbedHistory.length - 1; i >= 0; i--) {
+        const item = absorbedHistory[i];
+        const link = document.createElement("a");
+        link.href = item.postUrl || "#";
+        link.target = "_blank";
+        link.textContent = item.title || "(untitled)";
+        link.style.display = "block";
+        link.style.marginBottom = "4px";
+        link.style.textDecoration = "none";
+        link.style.color = "#0077cc";
+        panel.appendChild(link);
+      }
+
+      if (absorbedHistory.length > 0) {
+        panel.style.display = "block";
+      } else {
+        panel.style.display = "none";
+      }
+    }
+
+    // 2) Media (image or mp4)
+    function showAbsorbedMedia(imageUrl, videoUrl, redditUrl, postTitle, upvoteCount, isVideo) {
+      const container = document.getElementById("absorbedImageContainer");
+      const link = document.getElementById("absorbedImageLink");
+      const img  = document.getElementById("absorbedImage");
+      const vid  = document.getElementById("absorbedVideo");
+
+      if (link) link.href = redditUrl || "#";
+
+      if (isVideo && videoUrl) {
+        // Show <video>, hide <img>
+        img.style.display = "none";
+        vid.style.display = "block";
+        vid.src = videoUrl;
+        vid.onclick = () => window.open(redditUrl, "_blank");
+        vid.load();
+      } else {
+        // Show <img>, hide <video>
+        vid.style.display = "none";
+        vid.src = "";
+        img.style.display = "block";
+        img.src = imageUrl || 
+          "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+      }
+
+      if (container) container.style.display = "block";
+      showDetailsPane(postTitle, upvoteCount);
+    }
+
+    function showDetailsPane(title, upvoteCount) {
+      const pane = document.getElementById("absorbedDetailsContainer");
+      const titleEl = document.getElementById("detailsTitle");
+      const priceEl = document.getElementById("detailsPrice");
+
+      if (titleEl) titleEl.textContent = title || "(untitled)";
+      if (priceEl) {
+        priceEl.textContent = upvoteCount ? `⬆️ Upvotes: ${upvoteCount}` : "No upvotes yet";
+      }
+      if (pane) pane.style.display = "block";
+    }
+
+    function hideDetailsPane(){
+      const pane = document.getElementById("absorbedDetailsContainer");
+      if (pane) pane.style.display="none";
+
+      const container = document.getElementById("absorbedImageContainer");
+      if(container) container.style.display="none";
+    }
+
+    function showAbsorbedHistoryAtIndex(idx){
+      if (idx<0 || idx>=absorbedHistory.length) return;
+      const item = absorbedHistory[idx];
+      showAbsorbedMedia(
+        item.thumbnailUrl,
+        item.videoUrl,
+        item.postUrl,
+        item.title,
+        item.upvoteCount,
+        item.isVideo
+      );
+    }
+
+    // 3) Sphere click
+    function showClickedDnBriefly(dn, instanceId) {
+      const r = dn.redditData;
+      const postUrl = r.permalink 
+        ? "https://www.reddit.com" + r.permalink 
+        : "#";
+      const upvoteCount = r.upvoteCount || 0;
+      showAbsorbedMedia(
+        r.thumbnailUrl, 
+        dn.videoUrl, 
+        postUrl, 
+        r.title, 
+        upvoteCount, 
+        dn.isVideo
+      );
+      // Recolor the instance
+      const newColor = new THREE.Color(clickColors[Math.floor(Math.random()*clickColors.length)]);
+      dnInstancedMesh.setColorAt(instanceId, newColor);
+      dnInstancedMesh.instanceColor.needsUpdate = true;
+    }
+
+    // 4) Orbit / drag
+    function setupInteraction(domEl){
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+
+      domEl.addEventListener("mousedown", e=>{
+        isMouseDown=true; isDragging=false;
+        lastMouseX=e.clientX; lastMouseY=e.clientY;
+      });
+
+      domEl.addEventListener("mousemove", e=>{
+        if(!isMouseDown) return;
+        const deltaX=e.clientX-lastMouseX;
+        const deltaY=e.clientY-lastMouseY;
+        if(Math.abs(deltaX)>DRAG_THRESHOLD || Math.abs(deltaY)>DRAG_THRESHOLD){
+          isDragging=true;
+        }
+        if(isDragging){
+          orbitAzimuth -= deltaX * 0.003;
+          orbitPolar   -= deltaY * 0.003;
+          orbitPolar = Math.max(0.01, Math.min(Math.PI-0.01, orbitPolar));
+          lastMouseX=e.clientX;
+          lastMouseY=e.clientY;
+        }
+      });
+
+      domEl.addEventListener("mouseup", e=>{
+        if(!isDragging){
+          const rect = domEl.getBoundingClientRect();
+          mouse.x = ((e.clientX - rect.left) / rect.width)*2 -1;
+          mouse.y = -((e.clientY - rect.top) / rect.height)*2 +1;
+          raycaster.setFromCamera(mouse, camera);
+          const intersects = raycaster.intersectObject(dnInstancedMesh, false);
+          if (intersects.length>0){
+            const instanceId = intersects[0].instanceId;
+            if(instanceId!==undefined && dnData[instanceId]?.alive){
+              showClickedDnBriefly(dnData[instanceId], instanceId);
+            }
+          }
+        }
+        isMouseDown=false; isDragging=false;
+      });
+    }
+
+    // 5) Fetch logic: multiple feeds (subreddit param)
+    async function fetchRedditDataViaApi(redditPath, feedType="hot"){
+      let url;
+      // If user/ => user
+      if(redditPath.startsWith("user/")){
+        const username = redditPath.split("/")[1];
+        url = `https://www.reddit.com/user/${username}/submitted.json?limit=100`;
+      } else {
+        // else sub
+        if(feedType==="topYear"){
+          url = `https://www.reddit.com/r/${redditPath}/top.json?t=year&limit=100`;
+        } else {
+          url = `https://www.reddit.com/r/${redditPath}/${feedType}.json?limit=100`;
+        }
+      }
+      const resp=await fetch(url);
+      if(!resp.ok){
+        throw new Error(`Reddit API error: ${resp.status} - ${resp.statusText}`);
+      }
+      const json=await resp.json();
+      const rawPosts = json.data?.children||[];
+      return rawPosts.map(p => mapRedditPostToSimple(p.data));
+    }
+
+    function mapRedditPostToSimple(d){
+      // Check for reddit_video_preview
+      if(d.preview && d.preview.reddit_video_preview && d.preview.reddit_video_preview.fallback_url){
+        return {
+          title: d.title || "Untitled",
+          upvoteCount: d.ups || 0,
+          commentCount: d.num_comments||0,
+          permalink: d.permalink||"",
+          createdAt: d.created_utc? d.created_utc*1000 : Date.now(),
+          isVideo: true,
+          videoUrl: d.preview.reddit_video_preview.fallback_url,
+          thumbnailUrl: getHighResImageFromRedditPost(d)
+        };
+      }
+      // normal is_video
+      const isVideoPost = (
+        d.is_video && 
+        d.media && 
+        d.media.reddit_video && 
+        d.media.reddit_video.fallback_url
+      );
+      if(isVideoPost){
+        return {
+          title: d.title || "Untitled",
+          upvoteCount: d.ups || 0,
+          commentCount: d.num_comments||0,
+          permalink: d.permalink||"",
+          createdAt: d.created_utc? d.created_utc*1000 : Date.now(),
+          isVideo: true,
+          videoUrl: d.media.reddit_video.fallback_url,
+          thumbnailUrl: getHighResImageFromRedditPost(d)
+        };
+      }
+      // .gifv from imgur => treat as .mp4
+      const finalUrl = d.url_overridden_by_dest || d.url || "";
+      const domainLower = (d.domain||"").toLowerCase();
+      if(domainLower.includes("imgur.com") && finalUrl.toLowerCase().endsWith(".gifv")){
+        const mp4Link = finalUrl.replace(/\.gifv$/i, ".mp4");
+        return {
+          title: d.title || "Untitled",
+          upvoteCount: d.ups || 0,
+          commentCount: d.num_comments||0,
+          permalink: d.permalink||"",
+          createdAt: d.created_utc? d.created_utc*1000 : Date.now(),
+          isVideo: true,
+          videoUrl: mp4Link,
+          thumbnailUrl: getHighResImageFromRedditPost(d)
+        };
+      }
+      // default => image
+      return {
+        title: d.title || "Untitled",
+        upvoteCount: d.ups || 0,
+        commentCount: d.num_comments||0,
+        permalink: d.permalink||"",
+        createdAt: d.created_utc? d.created_utc*1000 : Date.now(),
+        isVideo:false,
+        videoUrl:"",
+        thumbnailUrl: getHighResImageFromRedditPost(d)
+      };
+    }
+
+    function getHighResImageFromRedditPost(d){
+      // .gif
+      if(d.url && d.url.endsWith(".gif")){
+        return d.url;
+      }
+      // preview gif
+      if(d.preview && d.preview.images && d.preview.images[0]){
+        const variants = d.preview.images[0].variants;
+        if(variants && variants.gif && variants.gif.source && variants.gif.source.url){
+          return variants.gif.source.url.replace(/&amp;/g,"&");
+        }
+      }
+      // fallback to preview
+      if(d.preview && d.preview.images && d.preview.images.length>0){
+        const firstImage = d.preview.images[0];
+        if(firstImage.source && firstImage.source.url){
+          return firstImage.source.url.replace(/&amp;/g,"&");
+        }
+      }
+      // fallback to thumbnail
+      if(d.thumbnail && d.thumbnail.startsWith("http")){
+        return d.thumbnail;
+      }
+      return "";
+    }
+
+    // Combine multiple feed calls unless it's user
+    async function fetchAllRedditThreads(redditPath){
+      if(redditPath.startsWith("user/")){
+        // fetch once
+        const posts = await fetchRedditDataViaApi(redditPath, "hot");
+        return posts;
+      } else {
+        // sub => multiple feeds
+        let allPosts=[];
+        for(const type of FEED_TYPES){
+          const subset=await fetchRedditDataViaApi(redditPath, type);
+          allPosts = allPosts.concat(subset);
+        }
+        // deduplicate by permalink
+        const uniqueMap = new Map();
+        for(let p of allPosts){
+          uniqueMap.set(p.permalink, p);
+        }
+        return Array.from(uniqueMap.values());
+      }
+    }
+
+    // Convert reddit posts => DNs
+    function convertRedditPostsToDNs(posts){
+      const maxX=700, maxY=600, maxZ=400;
+      const now=Date.now();
+      return posts.map(post=>{
+        const ageDays=(now - post.createdAt)/(1000*60*60*24);
+        const maxDays=365;
+        const clamped=Math.min(ageDays,maxDays);
+        const newnessFactor=1-(clamped/maxDays);
+
+        const upvoteFactor=Math.min(post.upvoteCount/5000,1.0);
+        const commentFactor=Math.min(post.commentCount/500,1.0);
+
+        const isGif= post.thumbnailUrl.toLowerCase().endsWith(".gif");
+
+        return {
+          redditData:{
+            title: post.title,
+            upvoteCount: post.upvoteCount,
+            permalink: post.permalink,
+            thumbnailUrl: post.thumbnailUrl,
+            isGif
+          },
+          isVideo: post.isVideo,
+          videoUrl: post.videoUrl || "",
+          attributes:{
+            upvoteFactor,
+            commentFactor,
+            newnessFactor
+          },
+          position: new THREE.Vector3(
+            Math.random()*maxX,
+            Math.random()*maxY,
+            Math.random()*maxZ
+          ),
+          velocity: new THREE.Vector3(0,0,0),
+          mass: 1,
+          alive:true
+        };
+      });
+    }
+
+    function calculateDnMass(dn){
+      return pmnData.reduce((total,pmn)=>{
+        switch(pmn.metric){
+          case "upvoteFactor":
+            return total + pmn.mass * dn.attributes.upvoteFactor;
+          case "commentFactor":
+            return total + pmn.mass * dn.attributes.commentFactor;
+          case "newnessFactor":
+            return total + pmn.mass * dn.attributes.newnessFactor;
+          default:
+            return total;
+        }
+      },1);
+    }
+
+    function recalculateDnMasses(dnArray){
+      dnArray.forEach(dn => {
+        dn.mass = calculateDnMass(dn);
+      });
+    }
+
+    // optionally fill up to 1000
+    function scaleDNsTo1000(dnData){
+      if(!dnData.length) return dnData;
+      const origCount=dnData.length;
+      while(dnData.length<1000){
+        const src=dnData[dnData.length % origCount];
+        const clone={
+          redditData:{...src.redditData},
+          isVideo: src.isVideo,
+          videoUrl: src.videoUrl,
+          attributes:{...src.attributes},
+          position: new THREE.Vector3(
+            Math.random()*700,
+            Math.random()*600,
+            Math.random()*400
+          ),
+          velocity: new THREE.Vector3(0,0,0),
+          mass: src.mass,
+          alive:true
+        };
+        dnData.push(clone);
+      }
+      return dnData;
+    }
+
+    // init => fetch => create scene => queue
+    async function init(){
+      try {
+        if(centerEl) centerEl.textContent = "Fetching Reddit data...";
+        const posts=await fetchAllRedditThreads(subreddit);
+        let rawDNs=convertRedditPostsToDNs(posts);
+        rawDNs.forEach(dn => dn.mass=calculateDnMass(dn));
+        if(rawDNs.length<1000){
+          scaleDNsTo1000(rawDNs);
+        }
+        queuedDNs = rawDNs.slice();
+        createEmptyScene();
+        startQueueTimer();
+        if(centerEl) centerEl.textContent = "";
+      } catch(err){
+        console.error("Error fetching reddit threads:", err.message);
+        if(centerEl) centerEl.textContent = "Unable to fetch Reddit data. Sorry.";
+      }
+    }
+
+    function createEmptyScene(){
+      const container = document.getElementById("simulation-container");
+      if(!container) return;
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color("#F2F2F2");
+      camera = new THREE.PerspectiveCamera(
+        75,
+        container.offsetWidth / container.offsetHeight,
+        0.1,
+        2000
+      );
+      renderer = new THREE.WebGLRenderer({antialias:true});
+      renderer.setSize(container.offsetWidth, container.offsetHeight);
+      container.appendChild(renderer.domElement);
+
+      // Create PMNs as spheres
+      pmnData.forEach(p=>{
+        p.position=new THREE.Vector3(
+          175 + Math.random()*350,
+          150 + Math.random()*300,
+          100 + Math.random()*200
+        );
+      });
+      const sphereGeom=new THREE.SphereGeometry(5,16,16);
+      const pmnMat=new THREE.MeshBasicMaterial({ color:"#808080" });
+      pmnData.forEach(p=>{
+        const mesh=new THREE.Mesh(sphereGeom, pmnMat);
+        mesh.position.copy(p.position);
+        scene.add(mesh);
+        p.mesh=mesh;
+        allMeshes.push(p);
+      });
+
+      dnData=[];
+      dnInstancedMesh=null;
+      linePositions=null;
+      lineSegments=null;
+      scene.add(new THREE.AmbientLight(0xffffff,1));
+
+      orbitAzimuth=0;
+      orbitPolar=Math.PI*0.5;
+      orbitRadius=400;
+
+      setupInteraction(container);
+      clock=new THREE.Clock();
+      animate();
+    }
+
+    function startQueueTimer(){
+      if(queueTimerHandle) clearInterval(queueTimerHandle);
+      queueTimerHandle = setInterval(()=>{
+        if(queuedDNs.length===0){
+          clearInterval(queueTimerHandle);
+          queueTimerHandle=null;
+          return;
+        }
+        const batch = queuedDNs.splice(0,BATCH_SIZE);
+        addDNsToScene(batch);
+      }, QUEUE_INTERVAL_MS);
+    }
+
+    function addDNsToScene(newItems){
+      const startIndex=dnData.length;
+      dnData=dnData.concat(newItems);
+      if(!dnInstancedMesh){
+        createOrExpandInstancedMesh(dnData.length);
+      } else {
+        recreateInstancedMesh(dnData.length);
+      }
+      recreateLineSegments(dnData.length);
+
+      for(let i=startIndex; i<dnData.length; i++){
+        updateOneInstance(i, dnData[i]);
+      }
+      dnInstancedMesh.instanceMatrix.needsUpdate=true;
+      dnInstancedMesh.instanceColor.needsUpdate=true;
+      lineSegments.geometry.attributes.position.needsUpdate=true;
+      recalcSceneCenter();
+    }
+
+    function createOrExpandInstancedMesh(newCount){
+      const baseDnGeom=new THREE.SphereGeometry(5,16,16);
+      const dnMat=new THREE.MeshBasicMaterial({ color:0xffffff });
+      dnInstancedMesh = new THREE.InstancedMesh(baseDnGeom, dnMat, newCount);
+      dnInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      dnInstancedMesh.instanceColor = new THREE.InstancedBufferAttribute(
+        new Float32Array(newCount*3),
+        3
+      );
+      dnInstancedMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+      scene.add(dnInstancedMesh);
+    }
+
+    function recreateInstancedMesh(newCount){
+      scene.remove(dnInstancedMesh);
+      const baseDnGeom=new THREE.SphereGeometry(5,16,16);
+      const dnMat=new THREE.MeshBasicMaterial({ color:0xffffff });
+      const newMesh = new THREE.InstancedMesh(baseDnGeom, dnMat, newCount);
+      newMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      newMesh.instanceColor=new THREE.InstancedBufferAttribute(
+        new Float32Array(newCount*3),
+        3
+      );
+      newMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+
+      if(dnInstancedMesh){
+        const oldCount = dnInstancedMesh.count;
+        for(let i=0; i<oldCount; i++){
+          const tmpMat=new THREE.Matrix4();
+          dnInstancedMesh.getMatrixAt(i, tmpMat);
+          newMesh.setMatrixAt(i, tmpMat);
+          const oldColor=new THREE.Color();
+          dnInstancedMesh.getColorAt(i, oldColor);
+          newMesh.setColorAt(i, oldColor);
+        }
+      }
+      dnInstancedMesh=newMesh;
+      scene.add(dnInstancedMesh);
+    }
+
+    function recreateLineSegments(newCount){
+      if(lineSegments) scene.remove(lineSegments);
+      const lineGeo=new THREE.BufferGeometry();
+      linePositions = new Float32Array(newCount*2*3);
+      const filamentMat=new THREE.LineBasicMaterial({
+        color:"#808080", opacity:0.5, transparent:true
+      });
+      lineSegments=new THREE.LineSegments(lineGeo, filamentMat);
+      lineGeo.setAttribute("position", new THREE.BufferAttribute(linePositions,3));
+      scene.add(lineSegments);
+    }
+
+    function updateOneInstance(i, dn){
+      const tmpMatrix=new THREE.Matrix4();
+      tmpMatrix.makeTranslation(dn.position.x,dn.position.y,dn.position.z);
+      dnInstancedMesh.setMatrixAt(i, tmpMatrix);
+
+      // If .gif or video => lighter color
+      if(dn.redditData.isGif || dn.isVideo){
+        dnInstancedMesh.setColorAt(i, new THREE.Color("#E0E0E0"));
+      } else {
+        dnInstancedMesh.setColorAt(i, new THREE.Color("#BFBFBF"));
+      }
+
+      const arrOffset=i*6;
+      linePositions[arrOffset+0] = dn.position.x;
+      linePositions[arrOffset+1] = dn.position.y;
+      linePositions[arrOffset+2] = dn.position.z;
+      linePositions[arrOffset+3] = dn.position.x;
+      linePositions[arrOffset+4] = dn.position.y;
+      linePositions[arrOffset+5] = dn.position.z;
+    }
+
+    function recalcSceneCenter(){
+      const total=new THREE.Vector3(0,0,0);
+      let aliveCount=0;
+      dnData.forEach(d=>{
+        if(d.alive){
+          total.add(d.position);
+          aliveCount++;
+        }
+      });
+      if(aliveCount>0){
+        sceneCenter.copy(total).multiplyScalar(1/aliveCount);
+      }
+    }
+
+    function animate(){
+      requestAnimationFrame(animate);
+      const dt=clock.getDelta();
+      if(!isPaused){
+        applyForces();
+        timeSinceAbsorption+=dt;
+        if(timeSinceAbsorption>=ABSORPTION_INTERVAL){
+          timeSinceAbsorption=0;
+          timeBasedAbsorption();
+        }
+      }
+      updateCamera();
+      renderer.render(scene, camera);
+    }
+
+    function applyForces(){
+      if (!dnInstancedMesh) return;
+      const tmpMat=new THREE.Matrix4();
+      for(let i=0; i<dnData.length;i++){
+        const dn=dnData[i];
+        if(!dn.alive) continue;
+        let totalForce=new THREE.Vector3(0,0,0);
+        let velocityBoost=new THREE.Vector3(0,0,0);
+        let strongestPMN=null;
+        let maxPull=0;
+        pmnData.forEach(pmn=>{
+          const rVec=new THREE.Vector3().subVectors(pmn.mesh.position,dn.position);
+          const L=rVec.length()+5;
+          const forceMag=(1*dn.mass*pmn.mass)/(L*L);
+          if(forceMag>maxPull){
+            maxPull=forceMag; strongestPMN=pmn;
+          }
+          rVec.normalize();
+          totalForce.add(rVec.multiplyScalar(forceMag));
+          if(L<50){
+            const boostMag=(1*10)/(L*L);
+            velocityBoost.add(rVec.clone().multiplyScalar(boostMag*0.05));
+          }
+        });
+
+        if(totalForce.length()>15){
+          totalForce.normalize().multiplyScalar(15);
+        }
+        dn.velocity.add(totalForce).add(velocityBoost);
+        dn.position.add(dn.velocity);
+        dn.velocity.multiplyScalar(0.998);
+
+        if(dn.velocity.length()>20){
+          dn.velocity.normalize().multiplyScalar(20);
+        }
+
+        // boundaries
+        if(dn.position.x>boundaryX){
+          dn.position.x=boundaryX; dn.velocity.x*=-1;
+        } else if(dn.position.x<0){
+          dn.position.x=0; dn.velocity.x*=-1;
+        }
+        if(dn.position.y>boundaryY){
+          dn.position.y=boundaryY; dn.velocity.y*=-1;
+        } else if(dn.position.y<0){
+          dn.position.y=0; dn.velocity.y*=-1;
+        }
+        if(dn.position.z>boundaryZ){
+          dn.position.z=boundaryZ; dn.velocity.z*=-1;
+        } else if(dn.position.z<0){
+          dn.position.z=0; dn.velocity.z*=-1;
+        }
+
+        tmpMat.makeTranslation(dn.position.x,dn.position.y,dn.position.z);
+        dnInstancedMesh.setMatrixAt(i, tmpMat);
+
+        if(strongestPMN){
+          const arrOffset=i*6;
+          linePositions[arrOffset+0] = dn.position.x;
+          linePositions[arrOffset+1] = dn.position.y;
+          linePositions[arrOffset+2] = dn.position.z;
+          linePositions[arrOffset+3] = strongestPMN.mesh.position.x;
+          linePositions[arrOffset+4] = strongestPMN.mesh.position.y;
+          linePositions[arrOffset+5] = strongestPMN.mesh.position.z;
+        }
+      }
+      dnInstancedMesh.instanceMatrix.needsUpdate=true;
+      dnInstancedMesh.instanceColor.needsUpdate=true;
+      lineSegments.geometry.attributes.position.needsUpdate=true;
+    }
+
+    function updateCamera(){
+      const t=clock.getElapsedTime();
+      const xOrbit=orbitRadius*Math.sin(orbitPolar)*Math.cos(orbitAzimuth);
+      const yOrbit=orbitRadius*Math.cos(orbitPolar);
+      const zOrbit=orbitRadius*Math.sin(orbitPolar)*Math.sin(orbitAzimuth);
+
+      const swayX=amplitude.x*Math.sin(t*0.2);
+      const swayY=amplitude.y*Math.cos(t*0.17);
+      const swayZ=amplitude.z*Math.sin(t*0.23);
+
+      camera.position.set(
+        sceneCenter.x + xOrbit + swayX,
+        sceneCenter.y + yOrbit + swayY,
+        sceneCenter.z + zOrbit + swayZ
+      );
+      camera.lookAt(sceneCenter);
+    }
+
+    function timeBasedAbsorption(){
+      // 1) random PMN
+      const randomIndex=Math.floor(Math.random()*pmnData.length);
+      const pmn=pmnData[randomIndex];
+      // 2) nearest DN
+      let closestIdx=-1, minDist=Infinity;
+      for(let i=0; i<dnData.length; i++){
+        const dn=dnData[i];
+        if(!dn.alive) continue;
+        const dist=pmn.mesh.position.distanceTo(dn.position);
+        if(dist<minDist){
+          minDist=dist; closestIdx=i;
+        }
+      }
+      // 3) absorb
+      if(closestIdx>=0) absorbDn(closestIdx);
+    }
+
+    function absorbDn(dnIndex){
+      const absorbedDn=dnData[dnIndex];
+      absorbedDn.alive=false;
+
+      // Hide DN
+      const zeroMatrix=new THREE.Matrix4();
+      dnInstancedMesh.setMatrixAt(dnIndex, zeroMatrix);
+      dnInstancedMesh.instanceMatrix.needsUpdate=true;
+
+      // if not a gif => auto-open
+      if(!absorbedDn.redditData.isGif){
+        const imageUrl=absorbedDn.redditData.thumbnailUrl||"";
+        const postUrl=absorbedDn.redditData.permalink
+          ? "https://www.reddit.com"+absorbedDn.redditData.permalink
+          : "#";
+        const title=absorbedDn.redditData.title||"(unnamed)";
+        const ups=absorbedDn.redditData.upvoteCount||0;
+        showAbsorbedMedia(
+          imageUrl,
+          absorbedDn.videoUrl,
+          postUrl,
+          title,
+          ups,
+          absorbedDn.isVideo
+        );
+      }
+
+      // remove line
+      const idxLine=dnIndex*6;
+      for(let k=0; k<6; k++){
+        linePositions[idxLine+k]=-9999;
+      }
+      lineSegments.geometry.attributes.position.needsUpdate=true;
+
+      recalculateDnMasses(dnData.filter(d=>d.alive));
+
+      // Add to history
+      const historyItem={
+        title: absorbedDn.redditData.title||"(unnamed)",
+        postUrl: absorbedDn.redditData.permalink
+         ? "https://www.reddit.com"+absorbedDn.redditData.permalink
+         : "#",
+        thumbnailUrl: absorbedDn.redditData.thumbnailUrl||"",
+        videoUrl: absorbedDn.videoUrl||"",
+        isVideo: absorbedDn.isVideo,
+        upvoteCount: absorbedDn.redditData.upvoteCount||0
+      };
+      absorbedHistory.push(historyItem);
+      absorbedHistoryIndex=absorbedHistory.length-1;
+      updatePostListUI();
+    }
+
+    // 6) Attach event listeners
+
+    // speed slider
+    speedSliderEl.addEventListener("input", ()=>{
+      const val=parseFloat(speedSliderEl.value);
+      ABSORPTION_INTERVAL=val;
+      speedLabelEl.textContent=`${val}s`;
+    });
+    speedLabelEl.textContent=`${ABSORPTION_INTERVAL}s`;
+
+    // "Threads" button => actually fetch
+    discoverBtnEl.addEventListener("click", ()=>{
+      init();
+      if(centerEl) centerEl.textContent="";
+      discoverBtnEl.disabled = true;
+    });
+
+    // Play/pause
+    toggleIconEl.addEventListener("click", ()=>{
+      isPaused=!isPaused;
+      toggleIconEl.src = isPaused
+        ? "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/fa-solid-play.png"
+        : "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/fa-solid-pause.png";
+    });
+
+    // Back icon => navigate absorbed history
+    backIconEl.addEventListener("click", ()=>{
+      if(absorbedHistoryIndex>0){
+        absorbedHistoryIndex--;
+        showAbsorbedHistoryAtIndex(absorbedHistoryIndex);
+      }
+    });
+
+    // Forward icon => immediate absorption
+    forwardIconEl.addEventListener("click", ()=>{
+      timeBasedAbsorption();
+    });
+  })();
+}
+
+/**
+ * showGravitasPopup(subreddit)
+ * Emulates the "popup" logic from content-script.js:
+ *  - Show overlay
+ *  - If not already created, inject the snippet into the container
+ */
+function showGravitasPopup(subreddit) {
+  const overlay = document.getElementById('gravitas-popup-overlay');
+  const popup   = document.getElementById('gravitas-popup-container');
+  if(!overlay || !popup) return;
+
+  // Show overlay
+  overlay.style.display = 'block';
+  
+  // Clear anything inside the popup (fresh state)
+  popup.innerHTML = `
+    <button id="closePopupBtn"
+      style="position:absolute; top:10px; right:15px;
+             font-size:24px; background:none; border:none;
+             cursor:pointer; color:#333; z-index:99999999">
+      &times;
+    </button>
+  `;
+
+  // Attach close logic
+  const closeBtn = popup.querySelector('#closePopupBtn');
+  closeBtn.addEventListener('click', () => {
+    overlay.style.display = 'none';
+    popup.innerHTML = ''; 
+  });
+
+  // Insert the large simulation
+  createGravitasSimulation(popup, subreddit);
+}
+
+/***********************************************************
+ * Single input and button: once "Start" is pressed:
+ * - we read #subInput
+ * - if empty => "popular"
+ * - we call showGravitasPopup(...) 
+ ************************************************************/
+const startBtn = document.getElementById('startBtn');
+startBtn.addEventListener('click', () => {
+  const subVal = document.getElementById('subInput').value.trim();
+  const subToUse = subVal || "popular";
+  showGravitasPopup(subToUse);
+});
+</script>
+</body>
+</html>
