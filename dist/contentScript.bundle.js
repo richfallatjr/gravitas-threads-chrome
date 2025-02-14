@@ -38,7 +38,7 @@ function createGravitasSimulation(parentEl) {
   container.style.width = "100%";
   container.style.height = "100%";
   container.style.margin = "0 auto";
-  container.style.backgroundColor = "#F2F2F2";
+  container.style.backgroundColor = "#0D0D0D";
 
   // Centered text
   const centeredText = document.createElement("div");
@@ -49,7 +49,7 @@ function createGravitasSimulation(parentEl) {
   centeredText.style.transform = "translate(-50%, -50%)";
   centeredText.style.zIndex = "9999";
   centeredText.style.fontSize = "20px";
-  centeredText.style.color = "#000";
+  centeredText.style.color = "white";
   centeredText.style.fontFamily = "'Montserrat', sans-serif";
   centeredText.style.textAlign = "center";
   centeredText.innerHTML = "<strong>Reddit Threads</strong> driven by physics.";
@@ -71,7 +71,7 @@ function createGravitasSimulation(parentEl) {
   // Simple Logo
   const logo = document.createElement("img");
   logo.id = "logo";
-  logo.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/gravitas-logo-solo.png";
+  logo.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/light-gravitas-logo-solo.png";
   logo.alt = "Gravitas Logo";
   logo.style.height = "30px";
   logo.style.cursor = "pointer";
@@ -109,7 +109,7 @@ function createGravitasSimulation(parentEl) {
   // Play/Pause Icon (clickable <img>)
   const playPauseIcon = document.createElement("img");
   playPauseIcon.id = "togglePlayIcon";
-  playPauseIcon.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/fa-solid-pause.png"; 
+  playPauseIcon.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/light-fa-solid-pause.png"; 
   playPauseIcon.style.width = "20px";
   playPauseIcon.style.height = "20px";
   playPauseIcon.style.cursor = "pointer";
@@ -120,7 +120,7 @@ function createGravitasSimulation(parentEl) {
   // Back Icon
   const backIcon = document.createElement("img");
   backIcon.id = "backIcon";
-  backIcon.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/fa-solid-backward.png";
+  backIcon.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/light-fa-solid-backward.png";
   backIcon.style.width = "20px";
   backIcon.style.height = "20px";
   backIcon.style.cursor = "pointer";
@@ -131,7 +131,7 @@ function createGravitasSimulation(parentEl) {
   // Forward Icon
   const forwardIcon = document.createElement("img");
   forwardIcon.id = "forwardIcon";
-  forwardIcon.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/fa-solid-forward.png";
+  forwardIcon.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/light-fa-solid-forward.png";
   forwardIcon.style.width = "20px";
   forwardIcon.style.height = "20px";
   forwardIcon.style.cursor = "pointer";
@@ -149,11 +149,57 @@ function createGravitasSimulation(parentEl) {
   const speedLabel = document.createElement("label");
   speedLabel.id = "speedLabel";
   speedLabel.textContent = "";
-  speedLabel.style.color = "black";
+  speedLabel.style.color = "white";
   speedLabel.style.fontSize = "12px";
   speedLabel.style.userSelect = "none";
   // Ensure there's enough width to show e.g. "3s"
   speedLabel.style.minWidth = "24px";
+
+  const style = document.createElement('style');
+  style.innerHTML = `
+    #speedSlider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      background: #B3B3B3;
+      border-radius: 4px;
+      outline: none;
+      opacity: 0.9;
+      transition: opacity 0.2s;
+    }
+
+    #speedSlider:hover {
+      opacity: 1;
+    }
+
+    #speedSlider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #B3B3B3;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    #speedSlider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      background: #B3B3B3;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    #speedSlider::-ms-thumb {
+      width: 16px;
+      height: 16px;
+      background: #B3B3B3;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+  `;
+  document.head.appendChild(style);
 
   // Create the slider
   const speedSlider = document.createElement("input");
@@ -188,14 +234,16 @@ function createGravitasSimulation(parentEl) {
   postListPanel.style.width = "200px";
   postListPanel.style.maxHeight = "700px";
   postListPanel.style.overflowY = "auto";
-  postListPanel.style.backgroundColor = "rgba(255, 255, 255, 0.8)";
+  postListPanel.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
   postListPanel.style.padding = "10px";
   postListPanel.style.borderRadius = "4px";
   postListPanel.style.fontSize = "13px";
   postListPanel.style.pointerEvents = "auto";
   postListPanel.style.display = "none";
-  postListPanel.style.color = "#000";
+  postListPanel.style.color = "#B3B3B3";
   postListPanel.style.zIndex = "9999";
+  postListPanel.style.setProperty("color", "#B3B3B3", "important");
+  postListPanel.style.setProperty("text-decoration", "none", "important");
   postListPanel.style.userSelect = "none";
   postListPanel.style.webkitUserSelect = "none";
   postListPanel.style.msUserSelect = "none";
@@ -282,8 +330,8 @@ function createGravitasSimulation(parentEl) {
   absorbedDetailsContainer.style.transform = "translateX(-50%)";
   absorbedDetailsContainer.style.zIndex = "9999";
   absorbedDetailsContainer.style.width = "400px";
-  absorbedDetailsContainer.style.backgroundColor = "rgba(255, 255, 255, 0.75)";
-  absorbedDetailsContainer.style.border = "2px solid #000";
+  absorbedDetailsContainer.style.backgroundColor = "rgba(0, 0, 0, 0.75)";
+  absorbedDetailsContainer.style.border = "2px solid #B3B3B3";
   absorbedDetailsContainer.style.borderRadius = "8px";
   absorbedDetailsContainer.style.padding = "12px";
   absorbedDetailsContainer.style.display = "none";
@@ -298,13 +346,13 @@ function createGravitasSimulation(parentEl) {
   detailsTitle.id = "detailsTitle";
   detailsTitle.style.margin = "0 0 10px";
   detailsTitle.style.fontSize = "16px";
-  detailsTitle.style.color = "#333";
+  detailsTitle.style.color = "#999";
 
   const detailsPrice = document.createElement("p");
   detailsPrice.id = "detailsPrice";
   detailsPrice.style.margin = "0";
   detailsPrice.style.fontSize = "16px";
-  detailsPrice.style.color = "#555";
+  detailsPrice.style.color = "#777";
 
   absorbedDetailsContainer.appendChild(detailsTitle);
   absorbedDetailsContainer.appendChild(detailsPrice);
@@ -409,7 +457,7 @@ function createGravitasSimulation(parentEl) {
         link.style.display = "block";
         link.style.marginBottom = "4px";
         link.style.textDecoration = "none";
-        link.style.color = "#0077cc";
+        link.style.color = "#B3B3B3";
         panel.appendChild(link);
       }
 
@@ -461,7 +509,7 @@ function createGravitasSimulation(parentEl) {
 
       if (titleEl) titleEl.textContent = title || "(untitled)";
       if (priceEl) {
-        priceEl.textContent = upvoteCount ? `⬆️ Upvotes: ${upvoteCount}` : "No upvotes yet";
+        priceEl.textContent = upvoteCount ? `🡅 Upvotes: ${upvoteCount}` : "No upvotes yet";
       }
       if (pane) pane.style.display = "block";
     }
@@ -802,7 +850,7 @@ function createGravitasSimulation(parentEl) {
     function scaleDNsTo1000(dnData) {
       if (!dnData.length) return dnData;
       const origCount = dnData.length;
-      while (dnData.length < 1000) {
+      while (dnData.length < 300) {
         const src = dnData[dnData.length % origCount];
         const clone = {
           redditData: { ...src.redditData },
@@ -853,7 +901,7 @@ function createGravitasSimulation(parentEl) {
       if (!container) return;
 
       scene = new three__WEBPACK_IMPORTED_MODULE_0__.Scene();
-      scene.background = new three__WEBPACK_IMPORTED_MODULE_0__.Color("#F2F2F2");
+      scene.background = new three__WEBPACK_IMPORTED_MODULE_0__.Color("#0D0D0D");
 
       camera = new three__WEBPACK_IMPORTED_MODULE_0__.PerspectiveCamera(
         75,
@@ -874,7 +922,7 @@ function createGravitasSimulation(parentEl) {
         );
       });
       const sphereGeom = new three__WEBPACK_IMPORTED_MODULE_0__.SphereGeometry(5,16,16);
-      const pmnMat = new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({ color:"#808080" });
+      const pmnMat = new three__WEBPACK_IMPORTED_MODULE_0__.MeshBasicMaterial({ color:"#333333" });
       pmnData.forEach(p => {
         const mesh = new three__WEBPACK_IMPORTED_MODULE_0__.Mesh(sphereGeom, pmnMat);
         mesh.position.copy(p.position);
@@ -982,7 +1030,7 @@ function createGravitasSimulation(parentEl) {
       linePositions = new Float32Array(newCount*2*3);
 
       const filamentMat = new three__WEBPACK_IMPORTED_MODULE_0__.LineBasicMaterial({
-        color:"#808080", opacity:0.5, transparent:true
+        color:"#262626", opacity:0.5, transparent:true
       });
       lineSegments = new three__WEBPACK_IMPORTED_MODULE_0__.LineSegments(lineGeo, filamentMat);
       lineGeo.setAttribute("position", new three__WEBPACK_IMPORTED_MODULE_0__.BufferAttribute(linePositions,3));
@@ -996,9 +1044,9 @@ function createGravitasSimulation(parentEl) {
 
       // If it's .gif or isVideo => lighter color
       if (dn.redditData.isGif || dn.isVideo) {
-        dnInstancedMesh.setColorAt(i, new three__WEBPACK_IMPORTED_MODULE_0__.Color("#E0E0E0"));
+        dnInstancedMesh.setColorAt(i, new three__WEBPACK_IMPORTED_MODULE_0__.Color("#1A1A1A"));
       } else {
-        dnInstancedMesh.setColorAt(i, new three__WEBPACK_IMPORTED_MODULE_0__.Color("#BFBFBF"));
+        dnInstancedMesh.setColorAt(i, new three__WEBPACK_IMPORTED_MODULE_0__.Color("#2E2E2E"));
       }
 
       const arrOffset = i*6;
@@ -1244,9 +1292,9 @@ function createGravitasSimulation(parentEl) {
 
         // Swap the icon based on paused or not
         if (isPaused) {
-          toggleIconEl.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/fa-solid-play.png";
+          toggleIconEl.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/light-fa-solid-play.png";
         } else {
-          toggleIconEl.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/fa-solid-pause.png";
+          toggleIconEl.src = "https://raw.githubusercontent.com/richfallatjr/gravitas/main/assets/icons/light-fa-solid-pause.png";
         }
       });
     }
