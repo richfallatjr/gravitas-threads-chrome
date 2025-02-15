@@ -11,6 +11,11 @@
  ************************************************************/
 
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass }     from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { AfterimagePass }  from 'three/examples/jsm/postprocessing/AfterimagePass.js';
+
 
 export function createGravitasSimulation(parentEl) {
 
@@ -76,11 +81,14 @@ export function createGravitasSimulation(parentEl) {
   discoverBtn.id = "startButton";
   discoverBtn.textContent = "Threads";
   discoverBtn.style.padding = "10px 20px";
-  discoverBtn.style.backgroundColor = "#FFFFFF";
+  discoverBtn.style.backgroundColor = "#A9DC76";
   discoverBtn.style.border = "none";
   discoverBtn.style.borderRadius = "4px";
   discoverBtn.style.cursor = "pointer";
   discoverBtn.style.color = "black";
+  discoverBtn.style.fontWeight = "bold";
+  discoverBtn.style.fontSize = "16px";
+  discoverBtn.style.fontFamily = "'Montserrat', sans-serif";
   discoverBtn.style.display = "inline-flex";
   discoverBtn.style.alignItems = "center";
   discoverBtn.style.justifyContent = "center";
@@ -881,6 +889,8 @@ export function createGravitasSimulation(parentEl) {
       }
     }
 
+    let composer;
+
     function createEmptyScene() {
       const container = document.getElementById("simulation-container");
       if (!container) return;
@@ -897,6 +907,8 @@ export function createGravitasSimulation(parentEl) {
       renderer = new THREE.WebGLRenderer({ antialias:true });
       renderer.setSize(container.offsetWidth, container.offsetHeight);
       container.appendChild(renderer.domElement);
+
+
 
       // Create PMNs
       pmnData.forEach(p => {
@@ -922,6 +934,29 @@ export function createGravitasSimulation(parentEl) {
       linePositions = null;
       lineSegments = null;
       scene.add(new THREE.AmbientLight(0xffffff,1));
+
+      // 1) Create an EffectComposer
+      composer = new EffectComposer(renderer);
+
+      // 2) Add a RenderPass (renders your scene normally first)
+      const renderPass = new RenderPass(scene, camera);
+      composer.addPass(renderPass);
+
+      // 3) Bloom pass (UnrealBloom)
+      const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(container.offsetWidth, container.offsetHeight),
+        0.8,   // strength
+        0.4,   // radius
+        0.2   // threshold
+      );
+      composer.addPass(bloomPass);
+
+      // 4) Motion blur (AfterimagePass)
+      const afterimagePass = new AfterimagePass();
+      afterimagePass.uniforms.damp.value = 0.90; // 0.90 = moderate blur
+      composer.addPass(afterimagePass);
+
+
 
       orbitAzimuth = 0;
       orbitPolar   = Math.PI*0.5;
@@ -1029,7 +1064,7 @@ export function createGravitasSimulation(parentEl) {
 
       // If it's .gif or isVideo => lighter color
       if (dn.redditData.isGif || dn.isVideo) {
-        dnInstancedMesh.setColorAt(i, new THREE.Color("#1A1A1A"));
+        dnInstancedMesh.setColorAt(i, new THREE.Color("#e87d3e"));
       } else {
         dnInstancedMesh.setColorAt(i, new THREE.Color("#2E2E2E"));
       }
@@ -1071,7 +1106,7 @@ export function createGravitasSimulation(parentEl) {
         }
       }
       updateCamera();
-      renderer.render(scene, camera);
+      composer.render();
     }
 
     function applyForces() {
