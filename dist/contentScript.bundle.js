@@ -61,7 +61,7 @@ function createGravitasSimulation(parentEl) {
   centeredText.style.color = "white";
   centeredText.style.fontFamily = "'Montserrat', sans-serif";
   centeredText.style.textAlign = "center";
-  centeredText.innerHTML = "<strong>Reddit Threads</strong> driven by physics.";
+  centeredText.innerHTML = "<strong>Reddit Threads</strong> driven by physics.<br>Hit the <strong>Threads</strong> button to start.";
   container.appendChild(centeredText);
 
   // Top center container
