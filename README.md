@@ -1,5 +1,7 @@
 # **Gravitas Threads – A 3D Physics-Driven Reddit Explorer**  
-🔥 **Forget scrolling. Posts move. Videos auto-play. Explore Reddit like never before.**  
+🔥 **Forget scrolling. Posts move. Videos auto-play. Explore Reddit like never before.** 
+
+![Gravitas Simulation](./assets/ui-1-4-2.png)
 
 🚀 **Reddit Player**  
 💡 _A real-time physics-driven 3D experience._  
