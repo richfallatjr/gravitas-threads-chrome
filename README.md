@@ -18,6 +18,40 @@
 🎥 Click GIFs & videos → **Instant full-screen playback.**  
 🛰️ Experience **Reddit in motion.**  
 
+
+## 🛠️ Installation for Developers
+
+If you want to build and modify **Gravitas Threads**, follow these steps:
+
+### 1️⃣ Clone the Repository  
+```sh
+git clone https://github.com/richfallatjr/gravitas-threads-chrome.git
+cd gravitas-threads-chrome
+```
+### 2️⃣ Install Dependencies
+
+Make sure you have Node.js installed, then run:
+```sh
+npm install
+```
+### 3️⃣ Build the Project
+Use Webpack to bundle the extension:
+```sh
+npx webpack
+``` 
+This will create a dist/ folder with the built extension files.
+
+### 4️⃣ Load into Chrome
+Open Chrome and go to:
+1. chrome://extensions/
+2. Enable Developer Mode (top right corner).
+3. Click Load Unpacked.
+4. Select the dist/ folder from this repository. 
+5. The extension should now be installed and ready to use!
+
+## 📦 Latest Version ZIP File
+If you don’t want to build it yourself, you can find the latest version ZIP file in the repository.
+
 ---
 
 ## **🔥 Install & Use**
