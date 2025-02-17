@@ -54,7 +54,7 @@ If you don’t want to build it yourself, you can find the latest version ZIP fi
 
 ---
 
-## **🔥 Install & Use**
+## **🔥 Install & Use the Published Extension**
 ### 🛠 **Installation**
 1️⃣ **Install the App**: Approve permissions ([Chrome Store](https://chromewebstore.google.com/detail/gravitas-threads-reddit-p/jmalebenadmgjpnieneooompipjanndg)).  
 2️⃣ **Navigate to Reddit**: Open a **subreddit or user page.**  
