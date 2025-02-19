@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Gravitas Threads",
-  "version": "1.4",
+  "version": "1.5",
   "description": "Transforms Reddit threads into a dynamic 3D experience.",
 
   "permissions": [],
