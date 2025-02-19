@@ -65,7 +65,7 @@ If you don’t want to build it yourself, you can find the latest version ZIP fi
 ---
 
 ## **🚀 Features & Updates**
-✨ **New in v1.4:**
+✨ **New in this version:**
 - 🎬 **Cinematic Dark Mode**  
 - 🟠 **Glowing orange video balls** (easier to find)  
 - 🖥️ **Improved graphics & UI**  
