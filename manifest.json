@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Gravitas Threads",
-  "version": "1.5",
-  "description": "Transforms Reddit threads into a dynamic 3D experience.",
+  "name": "Gravitas Threads: Reddit Channel Player",
+  "version": "1.7",
+  "description": "Ditch scrolling watch Reddit in 3D with physics-based recommendation.",
 
   "permissions": [],
 
